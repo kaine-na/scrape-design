@@ -1,8 +1,10 @@
 import type { AnalysisResult } from "@/lib/analysis/types";
 import type { DesignMarkdownProvider } from "./types";
 
+import { buildDesignMarkdownTaskPrompt } from "./prompt-brain";
+
 export function buildDesignPrompt(analysis: AnalysisResult): string {
-  return `Generate a comprehensive AI-ready DESIGN.md for ${analysis.source.url}. Include YAML front matter, tokens, components, interactions, motion, responsive behavior, accessibility, implementation guidance, validation criteria, and evidence/assumptions/gaps. Do not overclaim uncertain findings.`;
+  return buildDesignMarkdownTaskPrompt(analysis.source.url);
 }
 
 export async function generateWithLlm(

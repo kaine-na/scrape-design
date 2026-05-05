@@ -1,4 +1,5 @@
 import type { AnalysisResult } from "@/lib/analysis/types";
+import { buildDesignSystemBrain, compactAnalysisForPrompt } from "./prompt-brain";
 import { mockDesignMarkdownProvider } from "./mock-provider";
 import type { DesignMarkdownProvider } from "./types";
 
@@ -21,14 +22,9 @@ function trimTrailingSlash(value: string): string {
 }
 
 function buildSystemPrompt(): string {
-  return [
-    "You generate comprehensive AI-ready DESIGN.md files from structured website analysis data.",
-    "Write specific, evidence-backed design guidance.",
-    "Do not leave placeholder instructions in the output.",
-    "Clearly distinguish detected, observed, and inferred details.",
-    "If the analysis data is weak, explain gaps and provide cautious recommendations."
-  ].join(" ");
+  return buildDesignSystemBrain();
 }
+
 
 function buildUserContent(analysis: AnalysisResult, prompt: string): string {
   return `${prompt}\n\nStructured analysis JSON:\n${JSON.stringify(analysis, null, 2)}`;
@@ -58,7 +54,7 @@ export function openAiCompatibleProvider(
           { role: "user", content: buildUserContent(analysis, prompt) }
         ]
       });
-      console.info(`[llm] request payload ${requestBody.length} chars, timeout ${options.timeoutMs ?? 60_000}ms`);
+      console.info(`[llm] compacted request payload ${requestBody.length} chars, timeout ${options.timeoutMs ?? 60_000}ms`);
 
       let response: Response;
       try {

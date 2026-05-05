@@ -32,7 +32,7 @@ describe("generateWithLlm", () => {
       }
     });
 
-    expect(capturedPrompt).toContain("AI-ready DESIGN.md");
-    expect(capturedPrompt).toContain("Do not overclaim");
+    expect(capturedPrompt).toContain("Return Markdown only");
+    expect(capturedPrompt).toContain("Do not claim exact animation");
   });
 });
