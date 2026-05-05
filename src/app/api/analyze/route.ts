@@ -36,10 +36,13 @@ export async function POST(request: Request) {
   }
 
   try {
+    const startedAt = Date.now();
     const analysis = await analyzeUrl(parsed.data.url, playwrightExtractor);
+    console.info(`[api/analyze] analysis completed in ${Date.now() - startedAt}ms`);
     const provider = createDesignMarkdownProviderFromEnv();
     const markdown = await generateWithLlm(analysis, provider);
-    return NextResponse.json({ analysis, markdown });
+    console.info(`[api/analyze] markdown completed in ${Date.now() - startedAt}ms (${markdown.length} chars)`);
+    return NextResponse.json({ markdown });
   } catch (error) {
     const message =
       error instanceof Error

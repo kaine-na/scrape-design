@@ -42,6 +42,7 @@ export function openAiCompatibleProvider(
   return {
     kind: "openai-compatible",
     async complete({ analysis, prompt }) {
+      const startedAt = Date.now();
       console.info(`[llm] calling ${options.model} via ${trimTrailingSlash(options.baseUrl)}`);
 
       const response = await fetcher(endpoint, {
@@ -68,14 +69,17 @@ export function openAiCompatibleProvider(
         );
       }
 
+      console.info(`[llm] response headers received in ${Date.now() - startedAt}ms`);
       const payload = (await response.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
       };
+      console.info(`[llm] response json parsed in ${Date.now() - startedAt}ms`);
       const content = payload.choices?.[0]?.message?.content?.trim();
       if (!content) {
         throw new Error("LLM response did not include generated markdown.");
       }
 
+      console.info(`[llm] markdown received (${content.length} chars) in ${Date.now() - startedAt}ms`);
       return content;
     }
   };
