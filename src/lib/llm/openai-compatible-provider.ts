@@ -8,6 +8,7 @@ interface OpenAiCompatibleOptions {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  timeoutMs?: number;
   fetch?: typeof fetch;
 }
 
@@ -45,22 +46,39 @@ export function openAiCompatibleProvider(
       const startedAt = Date.now();
       console.info(`[llm] calling ${options.model} via ${trimTrailingSlash(options.baseUrl)}`);
 
-      const response = await fetcher(endpoint, {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
+      const requestBody = JSON.stringify({
+        model: options.model,
+        temperature: options.temperature ?? 0.2,
+        max_tokens: options.maxTokens ?? 6_000,
+        stream: false,
+        messages: [
+          { role: "system", content: buildSystemPrompt() },
+          { role: "user", content: buildUserContent(analysis, prompt) }
+        ]
+      });
+      console.info(`[llm] request payload ${requestBody.length} chars, timeout ${options.timeoutMs ?? 60_000}ms`);
+
+      let response: Response;
+      try {
+        response = await fetcher(endpoint, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${options.apiKey}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          model: options.model,
-          temperature: options.temperature ?? 0.2,
-          max_tokens: options.maxTokens ?? 12_000,
-          messages: [
-            { role: "system", content: buildSystemPrompt() },
-            { role: "user", content: buildUserContent(analysis, prompt) }
-          ]
-        })
+        body: requestBody,
+        signal: controller.signal
       });
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new Error(`LLM request timed out after ${options.timeoutMs ?? 60_000}ms.`);
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!response.ok) {
         const detail = await response.text();
@@ -102,6 +120,7 @@ export function createDesignMarkdownProviderFromEnv(
     baseUrl,
     model,
     temperature: env.LLM_TEMPERATURE ? Number(env.LLM_TEMPERATURE) : undefined,
-    maxTokens: env.LLM_MAX_TOKENS ? Number(env.LLM_MAX_TOKENS) : undefined
+    maxTokens: env.LLM_MAX_TOKENS ? Number(env.LLM_MAX_TOKENS) : undefined,
+    timeoutMs: env.LLM_TIMEOUT_MS ? Number(env.LLM_TIMEOUT_MS) : undefined
   });
 }
