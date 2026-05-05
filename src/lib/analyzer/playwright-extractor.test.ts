@@ -30,5 +30,19 @@ describe("extractFromHtml", () => {
     expect(result.tokens.radius.some((token) => token.value === "999px")).toBe(true);
     expect(result.tokens.motion.some((token) => token.value.includes("180ms"))).toBe(true);
     expect(result.components.some((component) => component.type === "button")).toBe(true);
+    expect(result.tokens.colors.some((token) => token.value === "rgb(0, 0, 238)")).toBe(false);
+  });
+
+  it("dedupes repeated default links", async () => {
+    const html = `
+      <html><body>
+        <a href="/one">Same</a><a href="/two">Same</a><a href="/three">Same</a>
+      </body></html>
+    `;
+
+    const result = await extractFromHtml(html);
+
+    expect(result.tokens.colors.some((token) => token.value === "rgb(0, 0, 238)")).toBe(false);
+    expect(result.components.length).toBeLessThanOrEqual(1);
   });
 });
