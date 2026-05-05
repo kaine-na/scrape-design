@@ -1,0 +1,18 @@
+:root {
+  color: #14110f;
+  background: #faf5ef;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+main {
+  min-height: 100vh;
+  padding: 4rem 1.5rem;
+}
