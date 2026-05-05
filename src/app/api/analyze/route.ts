@@ -3,7 +3,7 @@ import { z } from "zod";
 import { analyzeUrl } from "@/lib/analyzer/analyze-url";
 import { playwrightExtractor } from "@/lib/analyzer/playwright-extractor";
 import { generateWithLlm } from "@/lib/llm/generate-with-llm";
-import { mockDesignMarkdownProvider } from "@/lib/llm/mock-provider";
+import { createDesignMarkdownProviderFromEnv } from "@/lib/llm/openai-compatible-provider";
 import { createRateLimiter } from "@/lib/security/rate-limit";
 
 const requestSchema = z.object({ url: z.string().min(1) });
@@ -37,7 +37,8 @@ export async function POST(request: Request) {
 
   try {
     const analysis = await analyzeUrl(parsed.data.url, playwrightExtractor);
-    const markdown = await generateWithLlm(analysis, mockDesignMarkdownProvider);
+    const provider = createDesignMarkdownProviderFromEnv();
+    const markdown = await generateWithLlm(analysis, provider);
     return NextResponse.json({ analysis, markdown });
   } catch (error) {
     const message =
