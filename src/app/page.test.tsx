@@ -8,7 +8,7 @@ describe("HomePage", () => {
 
     expect(screen.getByLabelText(/website url/i)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /generate design\.md/i })
+      screen.getByRole("button", { name: /generate/i })
     ).toBeInTheDocument();
   });
 });

@@ -6,7 +6,7 @@ const analysis: AnalysisResult = {
   source: { url: "https://example.com/", analyzedAt: "2026-05-05T00:00:00.000Z", scanType: "single-page" },
   confidence: { overall: "medium" },
   page: { title: "Example", sections: [] },
-  tokens: { colors: [], typography: [], spacing: [], radius: [], shadows: [], motion: [], breakpoints: [] },
+  tokens: { colors: [], typography: [], spacing: [], radius: [], shadows: [], gradients: [], effects: [], motion: [], breakpoints: [] },
   components: [],
   evidence: [],
   assumptions: [],
@@ -32,7 +32,7 @@ describe("generateWithLlm", () => {
       }
     });
 
-    expect(capturedPrompt).toContain("Return Markdown only");
-    expect(capturedPrompt).toContain("Do not claim exact animation");
+    expect(capturedPrompt).toContain("Return ONLY valid Markdown");
+    expect(capturedPrompt).toContain("Claim exact animation @keyframes");
   });
 });

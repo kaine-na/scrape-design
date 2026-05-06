@@ -10,10 +10,30 @@ export const evidenceSourceSchema = z.enum([
 ]);
 export type EvidenceSource = z.infer<typeof evidenceSourceSchema>;
 
+export const shadowLayerSchema = z.object({
+  inset: z.boolean().optional(),
+  x: z.string(),
+  y: z.string(),
+  blur: z.string(),
+  spread: z.string().optional(),
+  color: z.string()
+});
+export type ShadowLayer = z.infer<typeof shadowLayerSchema>;
+
 export const designTokenSchema = z.object({
   name: z.string(),
   value: z.string(),
   role: z.string().optional(),
+  source: evidenceSourceSchema.default("detected"),
+  confidence: confidenceSchema.default("medium")
+});
+
+export const gradientTokenSchema = z.object({
+  name: z.string(),
+  value: z.string(),
+  kind: z.enum(["linear", "radial", "conic"]).default("linear"),
+  angle: z.string().optional(),
+  stops: z.array(z.object({ color: z.string(), position: z.string().optional() })),
   source: evidenceSourceSchema.default("detected"),
   confidence: confidenceSchema.default("medium")
 });
@@ -61,6 +81,8 @@ export const analysisResultSchema = z.object({
     spacing: z.array(designTokenSchema),
     radius: z.array(designTokenSchema),
     shadows: z.array(designTokenSchema),
+    gradients: z.array(gradientTokenSchema),
+    effects: z.array(designTokenSchema),
     motion: z.array(designTokenSchema),
     breakpoints: z.array(designTokenSchema)
   }),
@@ -71,5 +93,6 @@ export const analysisResultSchema = z.object({
 });
 
 export type DesignToken = z.infer<typeof designTokenSchema>;
+export type GradientToken = z.infer<typeof gradientTokenSchema>;
 export type ComponentSpec = z.infer<typeof componentSpecSchema>;
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;

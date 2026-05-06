@@ -12,6 +12,8 @@ vi.mock("@/lib/analyzer/playwright-extractor", () => ({
         spacing: [],
         radius: [],
         shadows: [],
+        gradients: [],
+        effects: [],
         motion: [],
         breakpoints: []
       },

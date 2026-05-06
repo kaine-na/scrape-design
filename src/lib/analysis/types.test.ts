@@ -21,6 +21,8 @@ describe("analysisResultSchema", () => {
         spacing: [],
         radius: [],
         shadows: [],
+        gradients: [],
+        effects: [],
         motion: [],
         breakpoints: []
       },

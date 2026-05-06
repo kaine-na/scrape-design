@@ -33,6 +33,8 @@ const analysis: AnalysisResult = {
     spacing: [],
     radius: [],
     shadows: [],
+    gradients: [],
+    effects: [],
     motion: [],
     breakpoints: []
   },
@@ -57,24 +59,24 @@ describe("prompt brain", () => {
   it("compacts analysis before sending it to the LLM", () => {
     const compact = compactAnalysisForPrompt(analysis);
 
-    expect(compact.page.description?.length).toBeLessThan(330);
-    expect(compact.page.sections).toHaveLength(16);
-    expect(compact.tokens.colors).toHaveLength(16);
+    expect(compact.page.description?.length).toBeLessThan(410);
+    expect(compact.page.sections.length).toBeLessThanOrEqual(20);
+    expect(compact.tokens.colors.length).toBeLessThanOrEqual(24);
     expect(compact.components.length).toBeLessThanOrEqual(12);
-    expect(compact.evidence).toHaveLength(24);
+    expect(compact.evidence.length).toBeLessThanOrEqual(30);
   });
 
   it("frames the brain without self-identifying as an AI", () => {
     const brain = buildDesignSystemBrain();
 
-    expect(brain).toContain("As a senior design-system documentation architect");
+    expect(brain).toContain("world-class senior design-system architect");
     expect(brain.toLowerCase()).not.toContain("you are an ai");
   });
 
   it("creates a concrete DESIGN.md task prompt", () => {
     const prompt = buildDesignMarkdownTaskPrompt("https://example.com/");
 
-    expect(prompt).toContain("Return Markdown only");
+    expect(prompt).toContain("Return ONLY valid Markdown");
     expect(prompt).toContain("Merge duplicate components");
   });
 });

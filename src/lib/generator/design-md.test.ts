@@ -21,6 +21,8 @@ const analysis: AnalysisResult = {
     spacing: [],
     radius: [],
     shadows: [],
+    gradients: [],
+    effects: [],
     motion: [],
     breakpoints: []
   },

@@ -14,6 +14,8 @@ describe("analyzeUrl", () => {
           spacing: [],
           radius: [],
           shadows: [],
+          gradients: [],
+          effects: [],
           motion: [],
           breakpoints: []
         },
