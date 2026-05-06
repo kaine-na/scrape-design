@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { analyzeUrl } from "@/lib/analyzer/analyze-url";
-import { playwrightExtractor } from "@/lib/analyzer/playwright-extractor";
+import { analysisResultSchema } from "@/lib/analysis/types";
 import { generateWithLlm } from "@/lib/llm/generate-with-llm";
 import { createDesignMarkdownProviderFromEnv } from "@/lib/llm/openai-compatible-provider";
 import { createRateLimiter } from "@/lib/security/rate-limit";
 
-const requestSchema = z.object({ url: z.string().min(1) });
+const requestSchema = z.object({
+  analysis: analysisResultSchema,
+  url: z.string().min(1)
+});
+
 const rateLimiter = createRateLimiter({ maxRequests: 10, windowMs: 60_000 });
 
 export async function POST(request: Request) {
@@ -30,17 +33,18 @@ export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Please enter a valid public website URL." },
+      { error: "Invalid analysis data. Please retry extraction." },
       { status: 400 }
     );
   }
 
   try {
     const startedAt = Date.now();
-    const analysis = await analyzeUrl(parsed.data.url, playwrightExtractor);
-    console.info(`[api/analyze] analysis completed in ${Date.now() - startedAt}ms`);
+    console.info(`[api/analyze] received pre-extracted analysis for ${parsed.data.url}`);
+
     const provider = createDesignMarkdownProviderFromEnv();
-    const markdown = await generateWithLlm(analysis, provider);
+    const markdown = await generateWithLlm(parsed.data.analysis, provider);
+
     console.info(`[api/analyze] markdown completed in ${Date.now() - startedAt}ms (${markdown.length} chars)`);
     return NextResponse.json({ markdown });
   } catch (error) {

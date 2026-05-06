@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { extractFromUrl } from "@/lib/analyzer/client-extractor";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -20,11 +21,9 @@ interface LogEntry {
 /* ------------------------------------------------------------------ */
 
 const intermediateStages = [
-  { tag: "info" as const, msg: "Validating target URL and resolving DNS" },
-  { tag: "info" as const, msg: "Launching headless Chromium browser" },
-  { tag: "info" as const, msg: "Rendering live page with Playwright" },
-  { tag: "info" as const, msg: "Scrolling full page to trigger lazy assets" },
-  { tag: "info" as const, msg: "Extracting computed styles from 400+ DOM nodes" },
+  { tag: "info" as const, msg: "Fetching page HTML via CORS proxy" },
+  { tag: "info" as const, msg: "Creating same-origin iframe for extraction" },
+  { tag: "info" as const, msg: "Extracting computed styles from live DOM" },
   { tag: "info" as const, msg: "Collecting design tokens: colors, typography, spacing" },
   { tag: "info" as const, msg: "Capturing shadow layers, gradients, glass effects" },
   { tag: "info" as const, msg: "Detecting component families and interaction states" },
@@ -33,7 +32,7 @@ const intermediateStages = [
   { tag: "info" as const, msg: "Calling LLM provider to generate DESIGN.md" }
 ];
 
-const stageDelays = [100, 280, 450, 280, 380, 280, 320, 280, 240, 180, 400];
+const stageDelays = [600, 300, 400, 250, 250, 200, 180, 150, 400];
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -268,8 +267,6 @@ export default function HomePage() {
     setShowPreview(false);
     setIframeFailed(false);
     analyzedUrlRef.current = targetUrl;
-
-    /* Clear state and start loading */
     setLogs([]);
     setIsLoading(true);
 
@@ -291,23 +288,39 @@ export default function HomePage() {
       }, delay);
     }
 
-    /* First log fires instantly */
     setLogs([{ id: 0, tag: "info", message: intermediateStages[0].msg, timestamp: now() }]);
     stageIdx = 1;
-    timerId = setTimeout(scheduleLog, stageDelays[0] ?? 100);
+    timerId = setTimeout(scheduleLog, stageDelays[0] ?? 600);
 
     try {
+      /* Client-side extraction via proxy + blob iframe */
+      console.info("[client] extracting styles from", targetUrl);
+      const extracted = await extractFromUrl(targetUrl);
+      console.info("[client] extraction complete:", extracted.tokens.colors.length, "colors,", extracted.components.length, "components");
+
+      /* Build analysis payload */
+      const analysis = {
+        source: { url: targetUrl, analyzedAt: new Date().toISOString(), scanType: "single-page" as const },
+        confidence: { overall: "medium" as const },
+        page: { title: extracted.title, description: extracted.description, sections: extracted.sections },
+        tokens: extracted.tokens,
+        components: extracted.components,
+        evidence: extracted.evidence,
+        assumptions: extracted.assumptions,
+        gaps: extracted.gaps
+      };
+
+      /* Send to LLM API */
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: targetUrl })
+        body: JSON.stringify({ analysis, url: targetUrl })
       });
       const body = await response.json();
       if (!response.ok) {
         throw new Error(body.error || "The design analysis failed.");
       }
 
-      /* API returned successfully - push the REAL success log */
       setLogs((prev) => [
         ...prev,
         { id: prev.length, tag: "success", message: "DESIGN.md generated successfully", timestamp: now() }
