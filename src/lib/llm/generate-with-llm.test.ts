@@ -33,6 +33,6 @@ describe("generateWithLlm", () => {
     });
 
     expect(capturedPrompt).toContain("Return ONLY valid Markdown");
-    expect(capturedPrompt).toContain("Claim exact animation @keyframes");
+    expect(capturedPrompt).toContain("DO NOT: invent hover colors");
   });
 });

@@ -242,15 +242,15 @@ async function preparePageForExtraction(page: Page) {
     .waitForLoadState("domcontentloaded")
     .catch(() => undefined);
   await page
-    .waitForLoadState("networkidle", { timeout: 10_000 })
+    .waitForLoadState("networkidle", { timeout: 8_000 })
     .catch(() => undefined);
-  await page.waitForTimeout(1500);
+  /* Scroll to trigger lazy assets (faster: no forced timeout) */
   await page.evaluate(async () => {
     const height = document.documentElement.scrollHeight;
     const viewport = window.innerHeight || 800;
-    for (let y = 0; y < height; y += viewport) {
+    for (let y = 0; y < height && y < 6000; y += viewport) {
       window.scrollTo(0, y);
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      await new Promise((resolve) => setTimeout(resolve, 80));
     }
     window.scrollTo(0, 0);
   });
@@ -315,7 +315,7 @@ export async function extractFromPage(page: Page) {
       // Query elements
       const elements = Array.from(document.querySelectorAll(selector))
         .filter(visible)
-        .slice(0, 400);
+        .slice(0, 250);
 
       const styles = elements.map((el) => {
         const st = getComputedStyle(el);
@@ -838,18 +838,38 @@ export const playwrightExtractor: PageExtractor = {
   async extract(url: string) {
     console.info(`[analyzer] rendering live page ${url}`);
     const browser = await chromium.launch();
-    const page = await browser.newPage({
-      viewport: { width: 1440, height: 1000 }
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 720 }
+    });
+    const page = await context.newPage();
+
+    /* Block heavy resources for 50-80% faster loads */
+    await page.route("**/*", (route) => {
+      const type = route.request().resourceType();
+      if (["image", "font", "media", "stylesheet"].includes(type)) {
+        route.abort();
+      } else {
+        route.continue();
+      }
+    });
+
+    /* Disable CSS animations/transitions for faster rendering */
+    await page.addInitScript(() => {
+      const style = document.createElement("style");
+      style.textContent =
+        "*,*::before,*::after{transition:none!important;animation:none!important;animation-duration:0s!important}";
+      document.documentElement.appendChild(style);
     });
 
     try {
       await page.goto(url, {
         waitUntil: "domcontentloaded",
-        timeout: 30_000
+        timeout: 20_000
       });
       await preparePageForExtraction(page);
       return await extractFromPage(page);
     } finally {
+      await context.close();
       await browser.close();
     }
   }

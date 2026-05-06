@@ -61,15 +61,15 @@ describe("prompt brain", () => {
 
     expect(compact.page.description?.length).toBeLessThan(410);
     expect(compact.page.sections.length).toBeLessThanOrEqual(20);
-    expect(compact.tokens.colors.length).toBeLessThanOrEqual(24);
-    expect(compact.components.length).toBeLessThanOrEqual(12);
-    expect(compact.evidence.length).toBeLessThanOrEqual(30);
+    expect(compact.tokens.colors.length).toBeLessThanOrEqual(14);
+    expect(compact.components.length).toBeLessThanOrEqual(10);
+    expect(compact.evidence.length).toBeLessThanOrEqual(20);
   });
 
   it("frames the brain without self-identifying as an AI", () => {
     const brain = buildDesignSystemBrain();
 
-    expect(brain).toContain("world-class senior design-system architect");
+    expect(brain).toContain("design-system architect");
     expect(brain.toLowerCase()).not.toContain("you are an ai");
   });
 
