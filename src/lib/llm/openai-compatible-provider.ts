@@ -18,6 +18,14 @@ interface ProviderWithKind extends DesignMarkdownProvider {
   kind: "mock" | "openai-compatible";
 }
 
+interface SseChunk {
+  choices?: Array<{
+    delta?: { content?: string };
+    message?: { content?: string };
+    text?: string;
+  }>;
+}
+
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
@@ -27,19 +35,37 @@ function buildUserContent(analysis: AnalysisResult, prompt: string): string {
   return `${prompt}\n\nCompact website analysis JSON:\n${JSON.stringify(compact, null, 2)}`;
 }
 
-function extractContentFromChunk(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-  const choice = (payload as { choices?: Array<Record<string, unknown>> }).choices?.[0];
+/* Extract text content from an SSE chunk - handles delta, message, and text paths */
+function extractContentFromChunk(payload: SseChunk): string {
+  const choice = payload.choices?.[0];
   if (!choice) return "";
 
-  const delta = choice.delta as { content?: unknown } | undefined;
-  if (typeof delta?.content === "string") return delta.content;
-
-  const message = choice.message as { content?: unknown } | undefined;
-  if (typeof message?.content === "string") return message.content;
-
+  if (typeof choice.delta?.content === "string") return choice.delta.content;
+  if (typeof choice.message?.content === "string") return choice.message.content;
   if (typeof choice.text === "string") return choice.text;
   return "";
+}
+
+/* Parse a single SSE data line */
+function parseSseLine(data: string): string {
+  if (!data || data === "[DONE]") return "";
+  try {
+    return extractContentFromChunk(JSON.parse(data) as SseChunk);
+  } catch {
+    console.warn(`[llm] skipped malformed SSE chunk: ${data.slice(0, 120)}`);
+    return "";
+  }
+}
+
+/* Parse SSE event from lines buffer */
+function parseSseEvents(lines: string[]): string {
+  let content = "";
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+    content += parseSseLine(trimmed.slice(5).trim());
+  }
+  return content;
 }
 
 export async function parseOpenAiSseStream(response: Response): Promise<string> {
@@ -61,44 +87,20 @@ export async function parseOpenAiSseStream(response: Response): Promise<string> 
     buffer = events.pop() ?? "";
 
     for (const event of events) {
-      for (const line of event.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-
-        const data = trimmed.slice(5).trim();
-        if (!data || data === "[DONE]") continue;
-
-        try {
-          content += extractContentFromChunk(JSON.parse(data));
-        } catch {
-          // Ignore malformed keepalive/debug events from local compatible servers.
-        }
-      }
+      content += parseSseEvents(event.split("\n"));
     }
   }
 
-  const trailing = buffer.trim();
-  if (trailing) {
-    for (const line of trailing.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const data = trimmed.slice(5).trim();
-      if (!data || data === "[DONE]") continue;
-      try {
-        content += extractContentFromChunk(JSON.parse(data));
-      } catch {
-        // Ignore trailing malformed events.
-      }
-    }
+  /* Process trailing buffer */
+  if (buffer.trim()) {
+    content += parseSseEvents(buffer.trim().split("\n"));
   }
 
   return content.trim();
 }
 
 async function parseJsonResponse(response: Response): Promise<string> {
-  const payload = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string }; text?: string }>;
-  };
+  const payload = (await response.json()) as SseChunk;
   return (payload.choices?.[0]?.message?.content ?? payload.choices?.[0]?.text ?? "").trim();
 }
 
@@ -106,17 +108,19 @@ export function openAiCompatibleProvider(
   options: OpenAiCompatibleOptions
 ): ProviderWithKind {
   const fetcher = options.fetch ?? fetch;
-  const endpoint = `${trimTrailingSlash(options.baseUrl)}/chat/completions`;
+  const cleanBaseUrl = trimTrailingSlash(options.baseUrl);
+  const endpoint = `${cleanBaseUrl}/chat/completions`;
 
   return {
     kind: "openai-compatible",
     async complete({ analysis, prompt }) {
       const startedAt = Date.now();
       const useStream = options.stream ?? true;
-      console.info(`[llm] calling ${options.model} via ${trimTrailingSlash(options.baseUrl)} (${useStream ? "stream" : "json"})`);
+      console.info(`[llm] calling ${options.model} via ${cleanBaseUrl} (${useStream ? "stream" : "json"})`);
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 120_000);
+      const timeoutMs = options.timeoutMs ?? 120_000;
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
       const requestBody = JSON.stringify({
         model: options.model,
         temperature: options.temperature ?? 0.2,
@@ -127,7 +131,7 @@ export function openAiCompatibleProvider(
           { role: "user", content: buildUserContent(analysis, prompt) }
         ]
       });
-      console.info(`[llm] compacted request payload ${requestBody.length} chars, timeout ${options.timeoutMs ?? 120_000}ms`);
+      console.info(`[llm] compacted request payload ${requestBody.length} chars, timeout ${timeoutMs}ms`);
 
       let response: Response;
       try {
@@ -143,7 +147,7 @@ export function openAiCompatibleProvider(
         });
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
-          throw new Error(`LLM request timed out after ${options.timeoutMs ?? 120_000}ms.`);
+          throw new Error(`LLM request timed out after ${timeoutMs}ms.`);
         }
         throw error;
       } finally {
@@ -151,9 +155,9 @@ export function openAiCompatibleProvider(
       }
 
       if (!response.ok) {
-        const detail = await response.text();
+        const detail = await response.text().catch(() => "<could not read body>");
         throw new Error(
-          `LLM request failed with ${response.status}: ${detail || response.statusText}`
+          `LLM request failed with ${response.status}: ${detail.slice(0, 500) || response.statusText}`
         );
       }
 

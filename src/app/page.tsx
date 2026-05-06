@@ -43,12 +43,13 @@ function now(): string {
   return new Date().toLocaleTimeString("en-US", { hour12: false });
 }
 
-function domain(url: string): string {
+function domain(rawUrl: string): string {
+  const cleaned = rawUrl.trim();
   try {
-    const u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
-    return u.hostname;
+    const u = new URL(/^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`);
+    return u.hostname || cleaned.slice(0, 50);
   } catch {
-    return url;
+    return cleaned.slice(0, 50) || "example.com";
   }
 }
 
@@ -155,13 +156,28 @@ function EyeIcon() {
   );
 }
 
-/* Strip YAML front matter and HTML comments for clean rendering */
+/* Strip YAML front matter and LLM instruction comments for clean rendering */
 function cleanMarkdown(raw: string): string {
   return raw
     .replace(/^---[\s\S]*?---\n?/, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<!--\s*LLM:[\s\S]*?-->/g, "")
     .trim();
 }
+
+/* Memoized markdown components for stable renders */
+const MARKDOWN_COMPONENTS = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pre: (props: any) => <pre {...props} />,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  a: ({ href, children, ...props }: any) => {
+    const external = href?.startsWith("http");
+    return (
+      <a href={href} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined} {...props}>
+        {children}
+      </a>
+    );
+  }
+};
 
 /* ------------------------------------------------------------------ */
 /* Main component                                                      */
@@ -198,12 +214,26 @@ export default function HomePage() {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  /* Ripple on buttons */
+  /* Ripple on buttons with cleanup */
   const addRipple = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     const button = event.currentTarget;
     const rect = button.getBoundingClientRect();
-    button.style.setProperty("--ripple-x", `${((event.clientX - rect.left) / rect.width) * 100}%`);
-    button.style.setProperty("--ripple-y", `${((event.clientY - rect.top) / rect.height) * 100}%`);
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    button.style.setProperty("--ripple-x", `${x}%`);
+    button.style.setProperty("--ripple-y", `${y}%`);
+    /* Clean up after animation completes */
+    const cleanup = () => {
+      button.style.removeProperty("--ripple-x");
+      button.style.removeProperty("--ripple-y");
+      button.removeEventListener("transitionend", cleanup);
+    };
+    button.addEventListener("transitionend", cleanup, { once: true });
+    /* Fallback: clear after 1s if transitionend never fires */
+    setTimeout(() => {
+      button.style.removeProperty("--ripple-x");
+      button.style.removeProperty("--ripple-y");
+    }, 1000);
   }, []);
 
   /* Submit */
@@ -496,7 +526,10 @@ export default function HomePage() {
                 <pre>{markdown}</pre>
               ) : (
                 <div className="markdown-render">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={MARKDOWN_COMPONENTS}
+                  >
                     {cleanMarkdown(markdown)}
                   </ReactMarkdown>
                 </div>

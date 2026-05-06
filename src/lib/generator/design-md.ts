@@ -195,7 +195,7 @@ components:
 
 ## 2. Visual Theme & Brand Atmosphere
 
-<!-- LLM: Describe the visual atmosphere from detected colors, typography, spacing, gradients, effects, shadows, and component treatments. Use concrete CSS evidence. Label each claim as Detected, Observed, or Inferred. -->
+
 
 ${analysis.tokens.colors.length ? `**Detected palette**: ${analysis.tokens.colors.slice(0, 8).map((c) => c.value).join(", ")}` : "No colors detected."}
 
@@ -247,7 +247,7 @@ ${breakpointBlock(analysis.tokens.breakpoints)}
 
 ## 4. Typography System
 
-<!-- LLM: Build complete type scale with CSS. Document font families, weights, sizes, line heights, letter-spacing, text-transform. Show the scale relationship between heading levels and body text. Include CSS code blocks. -->
+
 
 **Detected font families and scales** (see Section 3.2 for full token list).
 
@@ -255,7 +255,7 @@ ${breakpointBlock(analysis.tokens.breakpoints)}
 
 ## 5. Color System & Semantic Roles
 
-<!-- LLM: Map detected colors to semantic roles: background-primary, background-secondary, surface, text-primary, text-secondary, text-muted, border, accent/primary-action, accent-hover, success, warning, error. Output as :root CSS custom properties. Note contrast ratios where possible. -->
+
 
 ${analysis.tokens.colors.length ? "See Section 3.1 for detected color tokens. Apply semantic mapping below:" : "No colors to map."}
 
@@ -263,7 +263,7 @@ ${analysis.tokens.colors.length ? "See Section 3.1 for detected color tokens. Ap
 
 ## 6. Layout, Grid & Spacing
 
-<!-- LLM: Document container max-width, section padding, grid/flex usage, gap patterns, whitespace rhythm. Use detected spacing tokens. Include CSS for main layout patterns. -->
+
 
 **Spacing tokens**: See Section 3.3.
 
@@ -277,7 +277,7 @@ ${componentCssBlock(analysis)}
 
 ## 8. Interaction & Feedback States
 
-<!-- LLM: Document hover, focus, active, disabled, loading, success, error, and empty states. Include CSS for each detected state. Label as Detected, Observed, or Inferred. -->
+
 
 See component specs in Section 7 for per-component state CSS.
 
@@ -285,7 +285,7 @@ See component specs in Section 7 for per-component state CSS.
 
 ## 9. Motion & Animation Guidelines
 
-<!-- LLM: Output detected transition and animation CSS. If @keyframes are detected, show the keyframe definition. Classify motion by intent: entrance, exit, attention, feedback, loading. -->
+
 
 **Detected motion tokens**: See Section 3.8.
 
@@ -293,7 +293,7 @@ See component specs in Section 7 for per-component state CSS.
 
 ## 10. Responsive Behavior
 
-<!-- LLM: Document breakpoints, layout changes, and responsive patterns. Include CSS media queries where evidence exists. -->
+
 
 **Detected breakpoint signals**: See Section 3.9.
 
@@ -301,7 +301,7 @@ See component specs in Section 7 for per-component state CSS.
 
 ## 11. Accessibility Requirements
 
-<!-- LLM: Note color contrast, keyboard focus states, semantic heading structure, form labels, minimum 44px touch targets. Flag potential issues. -->
+
 
 ---
 
@@ -313,7 +313,7 @@ ${sectionList(analysis)}
 
 ## 13. Tech Stack Signals & Implementation Guidance
 
-<!-- LLM: Note detected framework/library signals. Provide implementation guidance using tokenized CSS custom properties and reusable component classes. -->
+
 
 ${analysis.evidence.filter((e) => e.includes("detected") || e.includes("signal")).map((e) => `- ${e}`).join("\n") || "- No framework signals detected."}
 
@@ -321,7 +321,7 @@ ${analysis.evidence.filter((e) => e.includes("detected") || e.includes("signal")
 
 ## 14. AI Agent Implementation Prompt
 
-<!-- LLM: Write direct, actionable instructions for an AI coding agent to recreate this design. Reference specific tokens, component specs, and CSS from sections above. -->
+
 
 Build a web page that follows this design system exactly:
 

@@ -109,9 +109,9 @@ export function compactAnalysisForPrompt(analysis: AnalysisResult) {
       breakpoints: compactTokens(analysis.tokens.breakpoints)
     },
     components: compactComponents(analysis.components),
-    evidence: analysis.evidence.slice(0, 20).map((item) => truncate(item, 200)),
-    assumptions: analysis.assumptions.slice(0, 14).map((item) => truncate(item, 200)),
-    gaps: analysis.gaps.slice(0, 14).map((item) => truncate(item, 200))
+    evidence: analysis.evidence.slice(0, TOKEN_LIMIT + 6).map((item) => truncate(item, TEXT_LIMIT)),
+    assumptions: analysis.assumptions.slice(0, TOKEN_LIMIT).map((item) => truncate(item, TEXT_LIMIT)),
+    gaps: analysis.gaps.slice(0, TOKEN_LIMIT).map((item) => truncate(item, TEXT_LIMIT))
   };
 }
 
