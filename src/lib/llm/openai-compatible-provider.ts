@@ -116,7 +116,7 @@ export function openAiCompatibleProvider(
       console.info(`[llm] calling ${options.model} via ${trimTrailingSlash(options.baseUrl)} (${useStream ? "stream" : "json"})`);
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
+      const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 120_000);
       const requestBody = JSON.stringify({
         model: options.model,
         temperature: options.temperature ?? 0.2,
@@ -127,7 +127,7 @@ export function openAiCompatibleProvider(
           { role: "user", content: buildUserContent(analysis, prompt) }
         ]
       });
-      console.info(`[llm] compacted request payload ${requestBody.length} chars, timeout ${options.timeoutMs ?? 60_000}ms`);
+      console.info(`[llm] compacted request payload ${requestBody.length} chars, timeout ${options.timeoutMs ?? 120_000}ms`);
 
       let response: Response;
       try {
@@ -143,7 +143,7 @@ export function openAiCompatibleProvider(
         });
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
-          throw new Error(`LLM request timed out after ${options.timeoutMs ?? 60_000}ms.`);
+          throw new Error(`LLM request timed out after ${options.timeoutMs ?? 120_000}ms.`);
         }
         throw error;
       } finally {

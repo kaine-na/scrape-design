@@ -155,6 +155,14 @@ function EyeIcon() {
   );
 }
 
+/* Strip YAML front matter and HTML comments for clean rendering */
+function cleanMarkdown(raw: string): string {
+  return raw
+    .replace(/^---[\s\S]*?---\n?/, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .trim();
+}
+
 /* ------------------------------------------------------------------ */
 /* Main component                                                      */
 /* ------------------------------------------------------------------ */
@@ -489,7 +497,7 @@ export default function HomePage() {
               ) : (
                 <div className="markdown-render">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {markdown}
+                    {cleanMarkdown(markdown)}
                   </ReactMarkdown>
                 </div>
               )}
