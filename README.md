@@ -1,237 +1,187 @@
 # Scrape Design
 
-Scrape Design is a public web app that turns one public website URL into an AI-ready `DESIGN.md`.
+Turn any public website URL into an AI-ready `DESIGN.md` design system document.
 
-The app renders the target page with Playwright, extracts live DOM and computed-style signals, then sends compact analysis data to an OpenAI-compatible LLM provider to generate a comprehensive design-system document.
+The app renders the target page with Playwright, extracts live DOM and 40+ computed CSS properties, then sends compact analysis data to an OpenAI-compatible LLM provider to generate a comprehensive, pixel-accurate design-system document with CSS code blocks.
 
 ## Features
 
-- Single-page website analysis.
-- No login or permanent result storage.
-- Live rendered DOM extraction with Playwright.
-- Computed style extraction for colors, typography, spacing, radius, shadows, motion, and components.
-- OpenAI-compatible LLM provider support.
-- Streaming LLM responses via SSE.
-- Copy and download generated `DESIGN.md`.
-- URL validation and basic rate limiting for public use.
+### Analysis
+- **40+ CSS properties** extracted: colors, typography, spacing, radius, shadows, gradients, glass effects, animations, transforms, depth/layering
+- **Structured shadow parsing** with multi-layer decomposition (inset, offset, blur, spread, color per layer)
+- **Gradient classification** (linear, radial, conic) with angle and color stop extraction
+- **Glass/effects detection** (backdrop-filter, filter, mix-blend-mode, opacity)
+- **Full animation specs** (name, duration, timing-function, delay, iteration-count, direction, fill-mode)
+- **Component family detection** with style deduplication and interaction state tracking
+- **Layout depth analysis** (z-index layers, flex/grid counts, sticky positioning)
+- **Framework detection** (Next.js, Tailwind, Framer, Webflow, GSAP)
+
+### UI
+- Clean professional design with **Plus Jakarta Sans** font
+- **Terminal-style log panel** with staggered real-time progress entries
+- **Rendered markdown preview** with syntax-highlighted CSS code blocks
+- **Live web preview iframe** with blocked-site fallback detection
+- **View toggle** (Preview / Source) for DESIGN.md output
+- **Interactive polygon wireframe background** with 3D mouse-tracking tilt
+- **Demo CTA** linking to scraped result clone
+- **GitHub footer** with repository link
+
+### LLM
+- OpenAI-compatible provider with **streaming SSE** and non-streaming JSON support
+- **Compact prompt brain** with few-shot CSS examples (shadows, gradients, glass, animations, colors)
+- **Mock provider fallback** when no API key is configured
+- Auto-detection of OpenAI, Groq, Gemini, DeepSeek, and OpenRouter
+
+### Performance
+- **Resource blocking** in Playwright (images, fonts, media) for 50-80% faster page loads
+- **CSS animation disabling** via addInitScript for instant rendering
+- **Compressed prompts** (~60% smaller than typical) for faster LLM response
+- Optimized for **sub-60-second end-to-end** with Groq or Gemini Flash
+
+### Safety
+- URL validation (rejects localhost, private IPs, non-HTTP schemes)
+- In-memory rate limiting (10 req/60s per IP)
+- No login, no permanent storage
 
 ## Requirements
 
-- Node.js 20.19+ or 22.12+.
-- npm.
-- A public website URL to analyze.
-- An OpenAI-compatible chat completions endpoint for high-quality generation.
+- Node.js 20.19+ or 22.12+
+- npm
+- A public website URL to analyze
+- OpenAI-compatible LLM endpoint (optional -- mock fallback included)
 
-## Setup
-
-Install dependencies:
+## Quick Start
 
 ```bash
 npm install
-```
-
-Install the Playwright browser:
-
-```bash
 npx playwright install chromium
-```
-
-Create local environment config:
-
-```bash
-copy .env.example .env.local
-```
-
-On macOS/Linux, use:
-
-```bash
 cp .env.example .env.local
+# Edit .env.local with your API key
+npm run dev
 ```
 
-Edit `.env.local` with your provider settings.
+Open http://localhost:3000
 
 ## Environment Variables
 
-Minimum required variables for real LLM generation:
+### Recommended Fast Setup (sub-60s response)
 
+**Groq** (fastest, 300-935 TPS):
 ```bash
-LLM_API_KEY=your-api-key
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4.1-mini
+LLM_API_KEY=gsk_...
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_MODEL=llama-3.3-70b-versatile
 LLM_STREAM=true
-LLM_TIMEOUT_MS=180000
+LLM_TIMEOUT_MS=60000
+LLM_MAX_TOKENS=3000
 ```
 
-OpenAI example:
+**Gemini Flash** (high throughput):
+```bash
+LLM_API_KEY=...
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+LLM_MODEL=gemini-2.0-flash
+LLM_STREAM=true
+LLM_TIMEOUT_MS=60000
+LLM_MAX_TOKENS=3000
+```
 
+**OpenAI** (balanced):
 ```bash
 LLM_API_KEY=sk-...
 LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4.1-mini
-LLM_TEMPERATURE=0.2
-LLM_MAX_TOKENS=4000
-LLM_TIMEOUT_MS=180000
+LLM_MODEL=gpt-4o-mini
 LLM_STREAM=true
+LLM_TIMEOUT_MS=60000
+LLM_MAX_TOKENS=3000
 ```
 
-OpenRouter example:
-
+**DeepSeek** (cheapest):
 ```bash
-LLM_API_KEY=sk-or-...
-LLM_BASE_URL=https://openrouter.ai/api/v1
-LLM_MODEL=openai/gpt-4.1-mini
-LLM_TEMPERATURE=0.2
-LLM_MAX_TOKENS=4000
-LLM_TIMEOUT_MS=180000
+LLM_API_KEY=sk-...
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-chat
 LLM_STREAM=true
+LLM_TIMEOUT_MS=120000
+LLM_MAX_TOKENS=3000
 ```
 
-Local OpenAI-compatible server example:
-
+### Analyzer Limits
 ```bash
-LLM_API_KEY=local-key-or-placeholder
-LLM_BASE_URL=http://localhost:20128/v1
-LLM_MODEL=cx/gpt-5.5-low
-LLM_TEMPERATURE=0.2
-LLM_MAX_TOKENS=4000
-LLM_TIMEOUT_MS=180000
-LLM_STREAM=true
-```
-
-Other variables:
-
-```bash
-ANALYSIS_TIMEOUT_MS=30000
+ANALYSIS_TIMEOUT_MS=20000
 RATE_LIMIT_MAX_REQUESTS=10
 RATE_LIMIT_WINDOW_MS=60000
 ```
 
-If `LLM_API_KEY`, `LLM_BASE_URL`, or `LLM_MODEL` is missing, the app falls back to the mock local Markdown generator. The mock is useful for development, but the result will be more generic than real LLM output.
-
-## Run Locally
-
-Start the development server:
-
-```bash
-npm run dev
-```
-
-Open:
-
-```text
-http://localhost:3000
-```
-
-Paste a public URL, for example:
-
-```text
-https://pawbytes.io/id
-```
-
-Click `Generate DESIGN.md`.
-
-When generation succeeds, the page shows a Markdown preview plus `Copy` and `Download` actions.
+If `LLM_API_KEY`, `LLM_BASE_URL`, or `LLM_MODEL` is missing, the app falls back to the mock Markdown generator for development.
 
 ## Expected Logs
 
-With real LLM settings, terminal logs should include:
-
 ```text
 [analyzer] rendering live page https://example.com
-[api/analyze] analysis completed in ...ms
-[llm] calling <model> via <baseUrl> (stream)
-[llm] compacted request payload ... chars, timeout ...ms
-[llm] response headers received in ...ms
-[llm] response body parsed in ...ms
-[llm] markdown received (... chars) in ...ms
-[api/analyze] markdown completed in ...ms
+[api/analyze] analysis completed in 8234ms
+[llm] calling gpt-4o-mini via https://api.openai.com/v1 (stream)
+[llm] compacted request payload 28456 chars, timeout 60000ms
+[llm] response headers received in 856ms
+[llm] response body parsed in 2341ms
+[llm] markdown received (12458 chars) in 3891ms
+[api/analyze] markdown completed in 12125ms (12458 chars)
 ```
 
-If the app logs this, the real LLM provider is being used:
+If you see `[llm] using mock provider`, fill `.env.local` and restart.
 
-```text
-[llm] calling ...
-```
+## Quality Checks
 
-If the app logs this, the mock provider is being used instead:
-
-```text
-[llm] using mock provider because LLM_API_KEY, LLM_BASE_URL, or LLM_MODEL is missing
+```bash
+npm test          # 23 tests across 11 test files
+npm run typecheck # TypeScript strict mode
+npm run build     # Production build
 ```
 
 ## Troubleshooting
 
-### Output looks generic
+| Issue | Solution |
+|---|---|
+| **Output looks generic** | Check logs for mock provider. Fill `.env.local`. |
+| **LLM times out** | Increase `LLM_TIMEOUT_MS`, use streaming (`LLM_STREAM=true`), or switch to Groq. |
+| **Web preview is blank** | Most sites block iframes. The app shows a fallback with "Open in new tab" link. |
+| **Playwright browser missing** | Run `npx playwright install chromium` |
+| **Target blocks analysis** | Some sites block headless browsers. Try a different URL. |
 
-Check terminal logs. If the mock provider is active, fill `.env.local` and restart `npm run dev`.
+## Architecture
 
-### LLM request times out
-
-Increase timeout in `.env.local`:
-
-```bash
-LLM_TIMEOUT_MS=180000
+```
+src/
+  app/                     Next.js App Router
+    page.tsx               Main UI (hero, form, logs, preview, result)
+    layout.tsx             Root layout with Plus Jakarta Sans font
+    globals.css            Full design system CSS
+    api/analyze/route.ts   POST handler (rate-limit -> validate -> analyze -> LLM)
+  lib/
+    analyzer/
+      playwright-extractor.ts  40+ CSS property extraction, structured shadows/gradients
+      analyze-url.ts            Orchestrator: validate -> extract -> Zod parse
+    llm/
+      openai-compatible-provider.ts  Streaming SSE + JSON LLM client
+      prompt-brain.ts                Compact system prompt with few-shot CSS examples
+      generate-with-llm.ts           Prompt builder + provider delegator
+      mock-provider.ts               Template-based fallback generator
+      types.ts                       DesignMarkdownProvider interface
+    generator/
+      design-md.ts            17-section DESIGN.md with CSS code blocks
+    analysis/
+      types.ts                Zod schemas: AnalysisResult, GradientToken, ShadowLayer, etc.
+    security/
+      url-validation.ts       Rejects localhost, private IPs, non-HTTP
+      rate-limit.ts           In-memory sliding window limiter
 ```
 
-Keep streaming enabled:
+## MVP Scope
 
-```bash
-LLM_STREAM=true
-```
+- Single-page scan only
+- No login, no dashboard, no permanent storage
+- No multi-page crawling or screenshot comparison
 
-If your provider does not support streaming, set:
+## License
 
-```bash
-LLM_STREAM=false
-```
-
-### Local LLM server says complete but app waits
-
-Use streaming mode. The app supports OpenAI-compatible SSE responses and parses `choices[0].delta.content` chunks.
-
-### Playwright browser missing
-
-Run:
-
-```bash
-npx playwright install chromium
-```
-
-### Target website blocks analysis
-
-Some websites block headless browsers, automation, or non-human traffic. Try another public URL or adjust deployment/browser settings later.
-
-## Quality Checks
-
-Run tests:
-
-```bash
-npm test
-```
-
-Run typecheck:
-
-```bash
-npm run typecheck
-```
-
-Run production build:
-
-```bash
-npm run build
-```
-
-## Current MVP Scope
-
-- Single-page scan only.
-- No login.
-- No project dashboard.
-- No permanent result storage.
-- No multi-page crawling yet.
-- No screenshot comparison yet.
-
-## Safety
-
-The analyzer rejects localhost, private IP ranges, unsupported URL schemes, and obvious metadata endpoints. Keep these protections before deploying publicly.
-
-The public API also includes basic in-memory rate limiting. For production, replace it with a durable shared rate limiter such as Redis or a platform-native limiter.
+Open source. See [GitHub](https://github.com/kaine-na/scrape-design).
