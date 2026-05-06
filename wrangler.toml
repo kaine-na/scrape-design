@@ -1,0 +1,8 @@
+# Cloudflare Pages + Next.js configuration
+# Enables Node.js compatibility for API routes (buffer, async_hooks, etc.)
+
+compatibility_flags = ["nodejs_compat"]
+compatibility_date = "2025-05-06"
+
+# Pages-specific: routes configuration
+pages_build_output_dir = ".vercel/output/static"
