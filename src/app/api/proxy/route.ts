@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+export const runtime = "edge";
 import { validatePublicHttpUrl } from "@/lib/security/url-validation";
 
 /* Proxy endpoint: fetches a public URL and returns HTML with CORS headers.

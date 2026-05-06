@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+export const runtime = "edge";
 import { z } from "zod";
 import { analysisResultSchema } from "@/lib/analysis/types";
 import { generateWithLlm } from "@/lib/llm/generate-with-llm";
