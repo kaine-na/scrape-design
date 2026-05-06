@@ -176,6 +176,27 @@ const MARKDOWN_COMPONENTS = {
         {children}
       </a>
     );
+  },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  li: ({ node, checked, children, ...props }: any) => {
+    const isTaskItem = node?.properties?.className?.includes?.("task-list-item");
+    if (isTaskItem) {
+      return (
+        <li className="task-list-item" {...props}>
+          <input type="checkbox" checked={checked ?? false} disabled readOnly />
+          <span>{children}</span>
+        </li>
+      );
+    }
+    return <li {...props}>{children}</li>;
+  },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ul: ({ node, children, ...props }: any) => {
+    const isTaskList = node?.properties?.className?.includes?.("contains-task-list");
+    if (isTaskList) {
+      return <ul className="contains-task-list" {...props}>{children}</ul>;
+    }
+    return <ul {...props}>{children}</ul>;
   }
 };
 

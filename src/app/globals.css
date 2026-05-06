@@ -1199,6 +1199,65 @@ button.secondary:active:not(:disabled) {
   font-weight: 700;
 }
 
+.markdown-render em { color: var(--muted); }
+
+/* Task list / checklist styling */
+.markdown-render .contains-task-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0 0 1em;
+}
+
+.markdown-render .task-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.markdown-render .task-list-item:hover {
+  background: rgba(241, 245, 249, 0.6);
+}
+
+.markdown-render .task-list-item input[type="checkbox"] {
+  flex-shrink: 0;
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: default;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.markdown-render .task-list-item input[type="checkbox"]:checked {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.markdown-render .task-list-item input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  width: 6px;
+  height: 10px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.markdown-render .task-list-item span {
+  line-height: 1.5;
+}
+
 .markdown-render em {
   color: var(--muted);
 }
