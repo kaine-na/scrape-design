@@ -24,8 +24,15 @@ const requestSchema = z.object({
 
 let activeBrowserlessExtractions = 0;
 
-function jsonError(error: string, code: string, status: number) {
-  return NextResponse.json({ error, code }, { status });
+function jsonError(error: string, code: string, status: number, debug?: string) {
+  const body: Record<string, unknown> = { error, code };
+  if (debug && process.env.NODE_ENV !== "production") {
+    body.debug = debug;
+  }
+  /* Also surface short debug in production to help diagnose env/auth issues.
+     Keep it safe: only first 200 chars, no secrets are included by callers. */
+  if (debug) body.debug = debug.slice(0, 200);
+  return NextResponse.json(body, { status });
 }
 
 export async function POST(request: Request) {
@@ -95,7 +102,12 @@ export async function POST(request: Request) {
     if (!response.ok) {
       const code = mapBrowserlessError(response.status, text);
       console.error("[api/extract] Browserless HTTP error:", response.status, code, text.slice(0, 500));
-      return jsonError("Browserless extraction failed.", code, 502);
+      return jsonError(
+        "Browserless extraction failed.",
+        code,
+        502,
+        `upstream_status=${response.status} body=${text.slice(0, 150)}`
+      );
     }
 
     let json: unknown;
