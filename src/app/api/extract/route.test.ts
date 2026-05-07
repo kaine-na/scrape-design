@@ -139,7 +139,7 @@ describe("POST /api/extract", () => {
     });
 
     const fetchMock = mockDnsAndBrowserlessFetch(async () =>
-      Response.json({ data: { evaluate: { value: validBrowserlessPayload } } })
+      Response.json({ data: validBrowserlessPayload, type: "application/json" })
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -178,7 +178,7 @@ describe("POST /api/extract", () => {
       if (requestUrl.startsWith("https://cloudflare-dns.com/dns-query")) {
         return Response.json({ Answer: [{ data: "10.0.0.5" }] });
       }
-      return Response.json({ data: { evaluate: { value: validBrowserlessPayload } } });
+      return Response.json({ data: validBrowserlessPayload, type: "application/json" });
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -211,7 +211,7 @@ describe("POST /api/extract", () => {
       if (requestUrl.startsWith("https://cloudflare-dns.com/dns-query")) {
         return new Response("dns unavailable", { status: 503 });
       }
-      return Response.json({ data: { evaluate: { value: validBrowserlessPayload } } });
+      return Response.json({ data: validBrowserlessPayload, type: "application/json" });
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -248,7 +248,7 @@ describe("POST /api/extract", () => {
       await new Promise<void>((resolve) => {
         releaseBrowserless = resolve;
       });
-      return Response.json({ data: { evaluate: { value: validBrowserlessPayload } } });
+      return Response.json({ data: validBrowserlessPayload, type: "application/json" });
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -289,7 +289,7 @@ describe("POST /api/extract", () => {
     vi.stubGlobal(
       "fetch",
       mockDnsAndBrowserlessFetch(async () =>
-        Response.json({ data: { evaluate: { value: validBrowserlessPayload } } })
+        Response.json({ data: validBrowserlessPayload, type: "application/json" })
       )
     );
 

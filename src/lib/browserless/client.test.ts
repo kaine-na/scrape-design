@@ -3,17 +3,17 @@ import { buildBrowserlessEndpoint, mapBrowserlessError } from "./client";
 
 describe("buildBrowserlessEndpoint", () => {
   it.each([
-    ["sfo", "chrome", "https://production-sfo.browserless.io/chrome/bql?token=secret-token"],
-    ["sfo", "webkit", "https://production-sfo.browserless.io/webkit/bql?token=secret-token"],
-    ["sfo", "firefox", "https://production-sfo.browserless.io/firefox/bql?token=secret-token"],
-    ["lon", "chrome", "https://production-lon.browserless.io/chrome/bql?token=secret-token"],
-    ["lon", "webkit", "https://production-lon.browserless.io/webkit/bql?token=secret-token"],
-    ["lon", "firefox", "https://production-lon.browserless.io/firefox/bql?token=secret-token"],
-    ["ams", "chrome", "https://production-ams.browserless.io/chrome/bql?token=secret-token"],
-    ["ams", "webkit", "https://production-ams.browserless.io/webkit/bql?token=secret-token"],
-    ["ams", "firefox", "https://production-ams.browserless.io/firefox/bql?token=secret-token"]
+    ["sfo", "chrome", "https://production-sfo.browserless.io/chrome/function?token=secret-token"],
+    ["sfo", "webkit", "https://production-sfo.browserless.io/webkit/function?token=secret-token"],
+    ["sfo", "firefox", "https://production-sfo.browserless.io/firefox/function?token=secret-token"],
+    ["lon", "chrome", "https://production-lon.browserless.io/chrome/function?token=secret-token"],
+    ["lon", "webkit", "https://production-lon.browserless.io/webkit/function?token=secret-token"],
+    ["lon", "firefox", "https://production-lon.browserless.io/firefox/function?token=secret-token"],
+    ["ams", "chrome", "https://production-ams.browserless.io/chrome/function?token=secret-token"],
+    ["ams", "webkit", "https://production-ams.browserless.io/webkit/function?token=secret-token"],
+    ["ams", "firefox", "https://production-ams.browserless.io/firefox/function?token=secret-token"]
   ] as const)(
-    "builds exact %s %s BrowserQL endpoint",
+    "builds exact %s %s /function endpoint",
     (region, browser, expected) => {
       const endpoint = buildBrowserlessEndpoint({
         token: "secret-token",

@@ -8,7 +8,7 @@ import {
 } from "@/lib/browserless/client";
 import { getBrowserlessConfig } from "@/lib/browserless/config";
 import { getBrowserlessEnv } from "@/lib/browserless/env";
-import { buildBrowserlessExtractionQuery } from "@/lib/browserless/extraction-script";
+import { buildBrowserlessExtractionCode } from "@/lib/browserless/extraction-script";
 import { normalizeBrowserlessResult } from "@/lib/browserless/normalize";
 import {
   preflightPublicHostnameDns,
@@ -26,32 +26,6 @@ let activeBrowserlessExtractions = 0;
 
 function jsonError(error: string, code: string, status: number) {
   return NextResponse.json({ error, code }, { status });
-}
-
-function getBrowserlessRawValue(payload: unknown): unknown {
-  if (typeof payload !== "object" || payload === null) return undefined;
-  const data = "data" in payload ? payload.data : undefined;
-  if (typeof data !== "object" || data === null) return undefined;
-  const evaluate = "evaluate" in data ? data.evaluate : undefined;
-  if (typeof evaluate !== "object" || evaluate === null) return undefined;
-  return "value" in evaluate ? evaluate.value : undefined;
-}
-
-function getGraphQlErrorMessage(payload: unknown) {
-  if (typeof payload !== "object" || payload === null || !("errors" in payload)) {
-    return undefined;
-  }
-  const errors = payload.errors;
-  if (!Array.isArray(errors)) return undefined;
-  return errors
-    .map((error) => {
-      if (typeof error === "object" && error !== null && "message" in error) {
-        return typeof error.message === "string" ? error.message : undefined;
-      }
-      return undefined;
-    })
-    .filter(Boolean)
-    .join("; ");
 }
 
 export async function POST(request: Request) {
@@ -105,13 +79,14 @@ export async function POST(request: Request) {
       return jsonError(dnsResult.error, "INVALID_URL", 400);
     }
 
-    console.info("[api/extract] DNS OK, calling Browserless:", endpoint.host);
+    console.info("[api/extract] DNS OK, calling Browserless /function:", endpoint.host);
 
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        query: buildBrowserlessExtractionQuery(urlResult.url, config.timeoutMs)
+        code: buildBrowserlessExtractionCode(),
+        context: { url: urlResult.url }
       }),
       signal: controller.signal
     });
@@ -135,16 +110,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const graphQlErrorMessage = getGraphQlErrorMessage(json);
-    if (graphQlErrorMessage) {
-      const code = mapBrowserlessError(200, graphQlErrorMessage);
-      console.error("[api/extract] Browserless GraphQL errors:", graphQlErrorMessage);
-      return jsonError("Browserless extraction failed.", code, 502);
-    }
+    // /function API returns { data: {...}, type: "application/json" }
+    const functionResult = typeof json === "object" && json !== null && "data" in json
+      ? (json as { data: unknown }).data
+      : json;
 
-    const raw = getBrowserlessRawValue(json);
-    if (raw == null) {
-      console.error("[api/extract] Browserless returned empty evaluate value. Response:", JSON.stringify(json).slice(0, 500));
+    if (!functionResult || typeof functionResult !== "object") {
+      console.error("[api/extract] Browserless returned empty/invalid data:", JSON.stringify(json).slice(0, 500));
       return jsonError(
         "Browserless returned an empty extraction.",
         "EXTRACTION_EMPTY",
@@ -152,21 +124,9 @@ export async function POST(request: Request) {
       );
     }
 
-    let rawValue: unknown;
-    try {
-      rawValue = typeof raw === "string" ? JSON.parse(raw) : raw;
-    } catch {
-      console.error("[api/extract] evaluate value is not valid JSON:", String(raw).slice(0, 300));
-      return jsonError(
-        "Browserless returned an invalid extraction.",
-        "EXTRACTION_INVALID",
-        502
-      );
-    }
-
     const analysis = normalizeBrowserlessResult({
       requestedUrl: urlResult.url,
-      raw: rawValue
+      raw: functionResult as Record<string, unknown>
     });
     const validation = analysisResultSchema.safeParse(analysis);
     if (!validation.success) {

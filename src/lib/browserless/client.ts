@@ -11,13 +11,17 @@ const regionHosts: Record<BrowserlessRegion, string> = {
   ams: "production-ams.browserless.io"
 };
 
+export type BrowserlessApi = "function" | "scrape";
+
 export function buildBrowserlessEndpoint(input: {
   token: string;
   region: BrowserlessRegion;
   browser: BrowserlessBrowser;
+  api?: BrowserlessApi;
 }) {
   const host = regionHosts[input.region];
-  const endpoint = new URL(`https://${host}/${input.browser}/bql`);
+  const api = input.api ?? "function";
+  const endpoint = new URL(`https://${host}/${input.browser}/${api}`);
   endpoint.searchParams.set("token", input.token);
   return endpoint;
 }
