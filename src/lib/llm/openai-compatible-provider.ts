@@ -23,6 +23,7 @@ interface SseChunk {
     delta?: { content?: string };
     message?: { content?: string };
     text?: string;
+    finish_reason?: string;
   }>;
 }
 
@@ -101,7 +102,11 @@ export async function parseOpenAiSseStream(response: Response): Promise<string> 
 
 async function parseJsonResponse(response: Response): Promise<string> {
   const payload = (await response.json()) as SseChunk;
-  return (payload.choices?.[0]?.message?.content ?? payload.choices?.[0]?.text ?? "").trim();
+  const choice = payload.choices?.[0];
+  if (choice?.finish_reason === "length") {
+    throw new Error("LLM response was truncated by max_tokens.");
+  }
+  return (choice?.message?.content ?? choice?.text ?? "").trim();
 }
 
 export function openAiCompatibleProvider(

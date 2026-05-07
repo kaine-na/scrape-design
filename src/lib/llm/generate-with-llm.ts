@@ -10,8 +10,15 @@ import {
 } from "./prompt-brain";
 
 const PARALLEL_CONCURRENCY = 2;
-const GROUP_MAX_TOKENS = 1_200;
-const MONOLITHIC_MAX_TOKENS = 3_000;
+const DEFAULT_GROUP_MAX_TOKENS = 1_200;
+const GROUP_MAX_TOKENS: Record<string, number> = {
+  foundations: 1_500,
+  "typography-color": 1_200,
+  "layout-components": 1_800,
+  "motion-responsive-a11y": 1_200,
+  implementation: 2_000
+};
+const MONOLITHIC_MAX_TOKENS = 4_000;
 
 export function buildDesignPrompt(analysis: AnalysisResult): string {
   const base = buildDesignMarkdownTaskPrompt(analysis.source.url);
@@ -59,7 +66,7 @@ async function generateGroup(
         analysis,
         prompt: groupPrompt,
         systemPromptOverride: brain,
-        maxTokensOverride: GROUP_MAX_TOKENS,
+        maxTokensOverride: GROUP_MAX_TOKENS[group.id] ?? DEFAULT_GROUP_MAX_TOKENS,
         streamOverride: false
       });
       console.info(`[llm-parallel] group "${group.id}" done in ${Date.now() - startedAt}ms (${result.length} chars, attempt ${attempt})`);
@@ -71,6 +78,21 @@ async function generateGroup(
   }
 
   throw lastError instanceof Error ? lastError : new Error(`Group "${group.id}" failed.`);
+}
+
+function hasRequiredSections(markdown: string): boolean {
+  const normalized = markdown.toLowerCase();
+  const required = [
+    "source summary",
+    "design tokens",
+    "component specifications",
+    "do's and don'ts",
+    "don'ts",
+    "validation checklist",
+    "evidence"
+  ];
+
+  return required.every((section) => normalized.includes(section));
 }
 
 /* Parallel generation: split 17 sections into groups, generate with bounded concurrency */
@@ -94,7 +116,13 @@ export async function generateWithLlmParallel(
     );
 
     const header = `---\nsource: ${analysis.source.url}\nanalyzed: ${analysis.source.analyzedAt}\ntool: scrape-design\n---\n\n`;
-    return header + sections.map((section) => section.trim()).filter(Boolean).join("\n\n---\n\n");
+    const markdown = header + sections.map((section) => section.trim()).filter(Boolean).join("\n\n---\n\n");
+
+    if (!hasRequiredSections(markdown)) {
+      throw new Error("Generated DESIGN.md is missing required sections.");
+    }
+
+    return markdown;
   } catch (error) {
     console.warn("[llm-parallel] falling back to monolithic generation after section failure:", error);
     return provider.complete({

@@ -91,6 +91,22 @@ describe("openAiCompatibleProvider", () => {
     expect(body.stream).toBe(false);
   });
 
+  it("rejects non-streaming responses truncated by max_tokens", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ choices: [{ message: { content: "# Partial" }, finish_reason: "length" }] })
+    );
+
+    const provider = openAiCompatibleProvider({
+      apiKey: "test-key",
+      baseUrl: "https://provider.example/v1/",
+      model: "test-model",
+      stream: false,
+      fetch: fetchMock
+    });
+
+    await expect(provider.complete({ analysis, prompt: "Generate DESIGN.md" })).rejects.toThrow("truncated");
+  });
+
   it("parses OpenAI-compatible SSE chunks", async () => {
     const stream = new ReadableStream({
       start(controller) {

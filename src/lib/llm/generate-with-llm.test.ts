@@ -13,6 +13,16 @@ const analysis: AnalysisResult = {
   gaps: []
 };
 
+const requiredMarkdown = [
+  "# Source Summary",
+  "# Design Tokens",
+  "# Component Specifications",
+  "# Do's and Don'ts",
+  "## Don'ts",
+  "# Validation Checklist",
+  "# Evidence"
+].join("\n\n");
+
 describe("generateWithLlm", () => {
   it("delegates to provider with structured analysis", async () => {
     const markdown = await generateWithLlm(analysis, {
@@ -43,8 +53,8 @@ describe("generateWithLlmParallel", () => {
     const complete = vi.fn(async ({ prompt, streamOverride, maxTokensOverride }) => {
       expect(prompt).toContain("Generate ONLY these sections");
       expect(streamOverride).toBe(false);
-      expect(maxTokensOverride).toBe(1200);
-      return "# Section";
+      expect(maxTokensOverride).toBeGreaterThanOrEqual(1200);
+      return requiredMarkdown;
     });
 
     const markdown = await generateWithLlmParallel(analysis, { complete });
@@ -58,13 +68,28 @@ describe("generateWithLlmParallel", () => {
     const complete = vi.fn(async ({ streamOverride, maxTokensOverride }) => {
       if (streamOverride === false) throw new Error("blank section response");
       expect(streamOverride).toBe(true);
-      expect(maxTokensOverride).toBe(3000);
+      expect(maxTokensOverride).toBe(4000);
       return "# Fallback DESIGN.md";
     });
 
     const markdown = await generateWithLlmParallel(analysis, { complete });
 
     expect(markdown).toBe("# Fallback DESIGN.md");
-    expect(complete).toHaveBeenCalledWith(expect.objectContaining({ streamOverride: true, maxTokensOverride: 3000 }));
+    expect(complete).toHaveBeenCalledWith(expect.objectContaining({ streamOverride: true, maxTokensOverride: 4000 }));
+  });
+
+  it("falls back to monolithic generation when required sections are missing", async () => {
+    let fallbackUsed = false;
+    const complete = vi.fn(async ({ streamOverride, maxTokensOverride }) => {
+      if (streamOverride === false) return "# Partial Section";
+      fallbackUsed = true;
+      expect(maxTokensOverride).toBe(4000);
+      return "# Full DESIGN.md";
+    });
+
+    const markdown = await generateWithLlmParallel(analysis, { complete });
+
+    expect(fallbackUsed).toBe(true);
+    expect(markdown).toBe("# Full DESIGN.md");
   });
 });
