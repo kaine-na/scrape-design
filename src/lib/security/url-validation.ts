@@ -4,6 +4,13 @@ type ValidationResult =
 
 const blockedHostnames = new Set(["localhost", "0.0.0.0"]);
 
+function normalizeIpv6Hostname(hostname: string): string | null {
+  if (!hostname.includes(":")) return null;
+  return hostname.startsWith("[") && hostname.endsWith("]")
+    ? hostname.slice(1, -1)
+    : hostname;
+}
+
 function parseIpv4(hostname: string): number[] | null {
   const parts = hostname.split(".");
   if (parts.length !== 4) return null;
@@ -19,6 +26,10 @@ function parseIpv4(hostname: string): number[] | null {
 function isPrivateIpv4(hostname: string): boolean {
   const ip = parseIpv4(hostname);
   if (!ip) return false;
+  return isPrivateIpv4Parts(ip);
+}
+
+function isPrivateIpv4Parts(ip: number[]): boolean {
   const [a, b] = ip;
 
   return (
@@ -29,6 +40,62 @@ function isPrivateIpv4(hostname: string): boolean {
     (a === 169 && b === 254) ||
     a === 0
   );
+}
+
+function parseIpv6(hostname: string): number[] | null {
+  const normalized = normalizeIpv6Hostname(hostname);
+  if (!normalized) return null;
+
+  const sides = normalized.split("::");
+  if (sides.length > 2) return null;
+
+  const parseSide = (side: string): number[] | null => {
+    if (!side) return [];
+    const parts = side.split(":");
+    const nums = parts.map((part) => parseInt(part, 16));
+    if (
+      parts.some((part) => !/^[\da-f]{1,4}$/i.test(part)) ||
+      nums.some((num) => !Number.isInteger(num) || num < 0 || num > 0xffff)
+    ) {
+      return null;
+    }
+    return nums;
+  };
+
+  const left = parseSide(sides[0]);
+  const right = parseSide(sides[1] ?? "");
+  if (!left || !right) return null;
+
+  if (sides.length === 1) {
+    return left.length === 8 ? left : null;
+  }
+
+  const missing = 8 - left.length - right.length;
+  if (missing < 1) return null;
+  return [...left, ...Array<number>(missing).fill(0), ...right];
+}
+
+function isPrivateIpv6(hostname: string): boolean {
+  const ip = parseIpv6(hostname);
+  if (!ip) return false;
+
+  const isUnspecified = ip.every((part) => part === 0);
+  const isLoopback = ip.slice(0, 7).every((part) => part === 0) && ip[7] === 1;
+  const isUniqueLocal = (ip[0] & 0xfe00) === 0xfc00;
+  const isLinkLocal = (ip[0] & 0xffc0) === 0xfe80;
+  const isIpv4Mapped =
+    ip.slice(0, 5).every((part) => part === 0) && ip[5] === 0xffff;
+
+  if (isIpv4Mapped) {
+    return isPrivateIpv4Parts([
+      ip[6] >> 8,
+      ip[6] & 0xff,
+      ip[7] >> 8,
+      ip[7] & 0xff
+    ]);
+  }
+
+  return isUnspecified || isLoopback || isUniqueLocal || isLinkLocal;
 }
 
 export function validatePublicHttpUrl(input: string): ValidationResult {
@@ -55,7 +122,7 @@ export function validatePublicHttpUrl(input: string): ValidationResult {
     return { ok: false, error: "Local URLs cannot be analyzed." };
   }
 
-  if (isPrivateIpv4(hostname)) {
+  if (isPrivateIpv4(hostname) || isPrivateIpv6(hostname)) {
     return { ok: false, error: "Private network URLs cannot be analyzed." };
   }
 

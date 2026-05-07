@@ -20,6 +20,13 @@ describe("validatePublicHttpUrl", () => {
     expect(validatePublicHttpUrl("http://169.254.169.254").ok).toBe(false);
   });
 
+  it("rejects private and local IPv6 hosts", () => {
+    expect(validatePublicHttpUrl("http://[::1]/").ok).toBe(false);
+    expect(validatePublicHttpUrl("http://[fc00::1]/").ok).toBe(false);
+    expect(validatePublicHttpUrl("http://[fe80::1]/").ok).toBe(false);
+    expect(validatePublicHttpUrl("http://[::ffff:127.0.0.1]/").ok).toBe(false);
+  });
+
   it("normalizes missing protocol to https", () => {
     const result = validatePublicHttpUrl("example.com");
     expect(result.ok).toBe(true);

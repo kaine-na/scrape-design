@@ -72,6 +72,33 @@ describe("POST /api/extract", () => {
     await expect(response.json()).resolves.toMatchObject({ code: "INVALID_URL" });
   });
 
+  it("rejects private IPv6 URLs before Browserless", async () => {
+    getBrowserlessConfigMock.mockReturnValue({
+      enabled: true,
+      token: "super-secret-token",
+      region: "sfo",
+      browser: "chrome",
+      timeoutMs: 50_000,
+      useResidentialProxy: false,
+      maxConcurrency: 2
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      new Request("http://localhost/api/extract", {
+        method: "POST",
+        body: JSON.stringify({ url: "http://[::1]/" })
+      })
+    );
+    const bodyText = await response.text();
+
+    expect(response.status).toBe(400);
+    expect(JSON.parse(bodyText)).toMatchObject({ code: "INVALID_URL" });
+    expect(bodyText).not.toContain("super-secret-token");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("returns 503 when Browserless is not configured", async () => {
     const response = await POST(
       new Request("http://localhost/api/extract", {
