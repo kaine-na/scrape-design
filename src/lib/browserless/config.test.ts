@@ -5,7 +5,12 @@ describe("getBrowserlessConfig", () => {
   it("returns disabled config when token is missing", () => {
     const config = getBrowserlessConfig({});
     expect(config.enabled).toBe(false);
+    if (config.enabled) throw new Error("expected disabled config");
     expect(config.error).toBe("BROWSERLESS_NOT_CONFIGURED");
+  });
+
+  it("can be called without args", () => {
+    expect(() => getBrowserlessConfig()).not.toThrow();
   });
 
   it("uses safe defaults", () => {

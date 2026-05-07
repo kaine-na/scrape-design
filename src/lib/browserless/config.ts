@@ -20,11 +20,15 @@ const browserSet = new Set(["chrome", "webkit", "firefox"]);
 
 function parsePositiveInt(value: string | undefined, fallback: number) {
   if (!value) return fallback;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-export function getBrowserlessConfig(env: Env = process.env): BrowserlessConfig {
+function getDefaultEnv(): Env {
+  return typeof process !== "undefined" && process.env ? process.env : {};
+}
+
+export function getBrowserlessConfig(env: Env = getDefaultEnv()): BrowserlessConfig {
   const token = env.BROWSERLESS_API_TOKEN?.trim();
   if (!token) return { enabled: false, error: "BROWSERLESS_NOT_CONFIGURED" };
 
