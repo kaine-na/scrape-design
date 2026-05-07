@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { extractFromUrl } from "@/lib/analyzer/client-extractor";
+import { analysisResultSchema, type AnalysisResult } from "@/lib/analysis/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -14,6 +15,23 @@ interface LogEntry {
   tag: "info" | "success" | "warn" | "error";
   message: string;
   timestamp: string;
+}
+
+interface ExtractApiResponse {
+  analysis?: AnalysisResult;
+  error?: string;
+  code?: string;
+  meta?: {
+    provider?: string;
+    browser?: string;
+    region?: string;
+    timedOut?: boolean;
+  };
+}
+
+interface AnalyzeApiResponse {
+  markdown?: string;
+  error?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -293,22 +311,60 @@ export default function HomePage() {
     timerId = setTimeout(scheduleLog, stageDelays[0] ?? 600);
 
     try {
-      /* Client-side extraction via proxy + blob iframe */
-      console.info("[client] extracting styles from", targetUrl);
-      const extracted = await extractFromUrl(targetUrl);
-      console.info("[client] extraction complete:", extracted.tokens.colors.length, "colors,", extracted.components.length, "components");
+      setLogs((prev) => [
+        ...prev,
+        { id: prev.length, tag: "info", message: "Starting high-fidelity Browserless extraction", timestamp: now() }
+      ]);
+      console.info("[client] requesting high-fidelity extraction for", targetUrl);
 
-      /* Build analysis payload */
-      const analysis = {
-        source: { url: targetUrl, analyzedAt: new Date().toISOString(), scanType: "single-page" as const },
-        confidence: { overall: "medium" as const },
-        page: { title: extracted.title, description: extracted.description, sections: extracted.sections },
-        tokens: extracted.tokens,
-        components: extracted.components,
-        evidence: extracted.evidence,
-        assumptions: extracted.assumptions,
-        gaps: extracted.gaps
-      };
+      let analysis: AnalysisResult | undefined;
+      try {
+        const extractResponse = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: targetUrl, mode: "high-fidelity" })
+        });
+        const extractedBody = (await extractResponse.json()) as ExtractApiResponse;
+
+        if (extractResponse.ok && extractedBody.analysis) {
+          analysis = extractedBody.analysis;
+          console.info("[client] high-fidelity extraction complete", extractedBody.meta ?? {});
+          setLogs((prev) => [
+            ...prev,
+            { id: prev.length, tag: "success", message: "High-fidelity extraction completed", timestamp: now() }
+          ]);
+        } else {
+          console.warn(
+            "[client] high-fidelity extraction unavailable; using fast fallback",
+            extractedBody.code ?? extractResponse.status
+          );
+        }
+      } catch (extractError) {
+        console.warn("[client] high-fidelity extraction failed; using fast fallback", extractError);
+      }
+
+      if (!analysis) {
+        setLogs((prev) => [
+          ...prev,
+          { id: prev.length, tag: "warn", message: "High-fidelity extraction failed; using fast fallback", timestamp: now() }
+        ]);
+
+        /* Client-side extraction via proxy + blob iframe fallback */
+        console.info("[client] extracting styles from", targetUrl);
+        const extracted = await extractFromUrl(targetUrl);
+        console.info("[client] extraction complete:", extracted.tokens.colors.length, "colors,", extracted.components.length, "components");
+
+        analysis = analysisResultSchema.parse({
+          source: { url: targetUrl, analyzedAt: new Date().toISOString(), scanType: "single-page" as const },
+          confidence: { overall: "medium" as const },
+          page: { title: extracted.title, description: extracted.description, sections: extracted.sections },
+          tokens: extracted.tokens,
+          components: extracted.components,
+          evidence: extracted.evidence,
+          assumptions: extracted.assumptions,
+          gaps: extracted.gaps
+        });
+      }
 
       /* Send to LLM API */
       const response = await fetch("/api/analyze", {
@@ -316,8 +372,8 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ analysis, url: targetUrl })
       });
-      const body = await response.json();
-      if (!response.ok) {
+      const body = (await response.json()) as AnalyzeApiResponse;
+      if (!response.ok || !body.markdown) {
         throw new Error(body.error || "The design analysis failed.");
       }
 
