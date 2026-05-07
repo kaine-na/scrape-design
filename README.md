@@ -115,7 +115,7 @@ RATE_LIMIT_WINDOW_MS=60000
 
 ### Browserless.io
 
-High-fidelity extraction uses Browserless.io. Configure the same variables locally in `.env.local` and in Cloudflare Pages environment variables:
+When configured, high-fidelity extraction uses Browserless.io. Configure the same variables locally in `.env.local` and in Cloudflare Pages environment variables:
 
 - `BROWSERLESS_API_TOKEN`
 - `BROWSERLESS_REGION=sfo`
