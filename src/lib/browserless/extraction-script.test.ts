@@ -14,7 +14,7 @@ describe("buildBrowserlessExtractionQuery", () => {
     const url = 'https://example.com/search?q="quoted"&path=\\value';
     const query = buildBrowserlessExtractionQuery(url, 50_000);
 
-    expect(query).toContain(`goto(url: ${JSON.stringify(url)}, waitUntil: networkIdle, timeout: 50000)`);
+    expect(query).toContain(`goto(url: ${JSON.stringify(url)}, waitUntil: load, timeout: 50000)`);
   });
 
   it("defaults non-finite timeouts", () => {
