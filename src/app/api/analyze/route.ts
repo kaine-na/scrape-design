@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "edge";
 import { z } from "zod";
 import { analysisResultSchema } from "@/lib/analysis/types";
-import { generateWithLlm } from "@/lib/llm/generate-with-llm";
+import { generateWithLlmParallel } from "@/lib/llm/generate-with-llm";
 import { createDesignMarkdownProviderFromEnv } from "@/lib/llm/openai-compatible-provider";
 import { createRateLimiter } from "@/lib/security/rate-limit";
 
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     console.info(`[api/analyze] received pre-extracted analysis for ${parsed.data.url}`);
 
     const provider = createDesignMarkdownProviderFromEnv();
-    const markdown = await generateWithLlm(parsed.data.analysis, provider);
+    const markdown = await generateWithLlmParallel(parsed.data.analysis, provider);
 
     console.info(`[api/analyze] markdown completed in ${Date.now() - startedAt}ms (${markdown.length} chars)`);
     return NextResponse.json({ markdown });

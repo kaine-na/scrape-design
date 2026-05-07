@@ -32,7 +32,7 @@ describe("generateWithLlm", () => {
       }
     });
 
-    expect(capturedPrompt).toContain("Return ONLY valid Markdown");
-    expect(capturedPrompt).toContain("DO NOT: invent hover colors");
+    expect(capturedPrompt).toContain("NEVER invent values");
+    expect(capturedPrompt).toContain("Merge duplicate components");
   });
 });

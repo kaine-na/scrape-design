@@ -59,10 +59,10 @@ describe("prompt brain", () => {
   it("compacts analysis before sending it to the LLM", () => {
     const compact = compactAnalysisForPrompt(analysis);
 
-    expect(compact.page.description?.length).toBeLessThan(410);
+    expect(compact.page.description?.length).toBeLessThan(340);
     expect(compact.page.sections.length).toBeLessThanOrEqual(20);
-    expect(compact.tokens.colors.length).toBeLessThanOrEqual(14);
-    expect(compact.components.length).toBeLessThanOrEqual(10);
+    expect(compact.tokens.colors.length).toBeLessThanOrEqual(12);
+    expect(compact.components.length).toBeLessThanOrEqual(8);
     expect(compact.evidence.length).toBeLessThanOrEqual(20);
   });
 
@@ -76,7 +76,7 @@ describe("prompt brain", () => {
   it("creates a concrete DESIGN.md task prompt", () => {
     const prompt = buildDesignMarkdownTaskPrompt("https://example.com/");
 
-    expect(prompt).toContain("Return ONLY valid Markdown");
+    expect(prompt).toContain("NEVER invent values");
     expect(prompt).toContain("Merge duplicate components");
   });
 });

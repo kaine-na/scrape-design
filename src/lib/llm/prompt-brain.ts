@@ -1,8 +1,8 @@
 import type { AnalysisResult, ComponentSpec, DesignToken, GradientToken } from "@/lib/analysis/types";
 
-const TOKEN_LIMIT = 14;
-const COMPONENT_LIMIT = 10;
-const TEXT_LIMIT = 200;
+const TOKEN_LIMIT = 12;
+const COMPONENT_LIMIT = 8;
+const TEXT_LIMIT = 160;
 
 function truncate(value: string | undefined, limit = TEXT_LIMIT): string | undefined {
   if (!value) return undefined;
@@ -119,38 +119,11 @@ export function compactAnalysisForPrompt(analysis: AnalysisResult) {
 
 export function buildDesignSystemBrain(): string {
   return [
-    "You are a design-system architect. Convert website analysis JSON into a COMPLETE DESIGN.md for AI coding agents.",
-    "CRITICAL: Every design claim must reference evidence from analysis. Label claims Detected/Observed/Inferred. NEVER invent.",
-    "Output usable CSS for EVERY token, shadow, gradient, effect, component, and animation using EXACT computed values.",
-
-    "FEW-SHOT EXAMPLES:",
-
-    "SHADOW: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.1)'",
-    "=> ```css\n.card{box-shadow:0 8px 32px rgba(0,0,0,0.12),0 2px 8px rgba(0,0,0,0.06),inset 0 1px 0 rgba(255,255,255,0.1)}```",
-
-    "GRADIENT: 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)'",
-    "=> ```css\n--gradient-hero:linear-gradient(135deg,#667eea 0%,#764ba2 100%);\n.hero{background:var(--gradient-hero)}```",
-
-    "GLASS: backdrop-filter:'blur(12px)',background:'rgba(255,255,255,0.15)'",
-    "=> ```css\n.glass{background:rgba(255,255,255,0.15);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.2);border-radius:24px}```",
-
-    "ANIMATION: name:'fadeInUp',duration:'0.6s',timing:'cubic-bezier(0.16,1,0.3,1)'",
-    "=> ```css\n@keyframes fadeInUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}\n.anim{animation:fadeInUp 0.6s cubic-bezier(0.16,1,0.3,1) both}```",
-
-    "COLORS: #1a1a2e,#e94560,#0f3460,#f5f5f5",
-    "=> ```css\n:root{--bg:#1a1a2e;--accent:#e94560;--surface:#0f3460;--text:#f5f5f5}```",
-
-    "OUTPUT RULES:",
-    "- Valid Markdown + YAML front matter. Use ```css blocks for all CSS.",
-    "- Shadow layers: preserve ALL layers. Explain each layer (depth/proximity/highlight).",
-    "- Gradients: exact angle + all color stops with positions.",
-    "- Glass/effects: always include -webkit-backdrop-filter.",
-    "- Animation: full shorthand (name duration timing delay count direction fill).",
-    "- Weak evidence: write 'Low confidence - [reason]'.",
-    "- NEVER placeholder text. Write actual content or mark low confidence.",
-    "- Composition: document z-index layers, spatial relationships, visual hierarchy, whitespace rhythm.",
-    "- Typography: font stacks + letter-spacing + text-transform + type scale.",
-    "- Output ONLY the DESIGN.md. No conversational text."
+    "You are a design-system architect. Convert website analysis JSON into DESIGN.md for AI coding agents.",
+    "RULES: Every claim references analysis evidence (Detected/Observed/Inferred). NEVER invent values.",
+    "Output usable ```css blocks for ALL tokens, shadows, gradients, effects, and components.",
+    "Preserve exact computed values. Include -webkit- prefixes for backdrop-filter.",
+    "Weak evidence: mark 'Low confidence - [reason]'. Output ONLY the DESIGN.md. No conversational text."
   ].join("\n");
 }
 
@@ -158,24 +131,77 @@ export function buildDesignSystemBrain(): string {
 
 export function buildDesignMarkdownTaskPrompt(sourceUrl: string): string {
   return [
-    `Generate one complete DESIGN.md from the single-page website analysis JSON for ${sourceUrl}.`,
+    `Generate one complete DESIGN.md from the website analysis JSON for ${sourceUrl}.`,
     "",
-    "CRITICAL OUTPUT RULES:",
-    "1. Return ONLY valid Markdown. Start with YAML front matter (--- ... ---).",
-    "2. EVERY section MUST include ```css blocks with exact CSS.",
-    "3. NEVER placeholder text. Write actual content or 'Low confidence - [reason]'.",
-    "4. NEVER invent/approximate values - use EXACT analysis data.",
+    "RULES:",
+    "1. Valid Markdown with YAML front matter (--- ... ---).",
+    "2. Every section includes ```css blocks with exact CSS values.",
+    "3. NEVER invent values - use EXACT data from analysis.",
+    "4. Merge duplicate components. Explain each shadow layer.",
     "",
     "REQUIRED SECTIONS (17):",
-    "1. Source Summary 2. Visual Theme & Brand Atmosphere 3. Design Tokens (colors,typography,spacing,radius,shadows,gradients,effects,motion,breakpoints) 4. Typography System 5. Color System & Semantic Roles 6. Layout, Grid & Spacing 7. Component Specifications 8. Interaction & Feedback States 9. Motion & Animation Guidelines 10. Responsive Behavior 11. Accessibility Requirements 12. Content & Page Structure 13. Tech Stack Signals & Implementation Guidance 14. AI Agent Implementation Prompt 15. Do's and Don'ts 16. Validation Checklist 17. Evidence, Assumptions & Gaps",
+    "1. Source Summary 2. Visual Theme & Brand Atmosphere 3. Design Tokens",
+    "4. Typography System 5. Color System & Semantic Roles 6. Layout, Grid & Spacing",
+    "7. Component Specifications 8. Interaction & Feedback States 9. Motion & Animation",
+    "10. Responsive Behavior 11. Accessibility 12. Content & Page Structure",
+    "13. Tech Stack Signals 14. AI Agent Implementation Prompt 15. Do's and Don'ts",
+    "16. Validation Checklist 17. Evidence, Assumptions & Gaps"
+  ].join("\n");
+}
+
+// ─── PARALLEL SECTION GROUPS ─────────────────────────────────────────
+
+export interface SectionGroup {
+  id: string;
+  name: string;
+  sections: string[];
+  instructions: string;
+}
+
+export const SECTION_GROUPS: SectionGroup[] = [
+  {
+    id: "foundations",
+    name: "Foundations",
+    sections: ["Source Summary", "Visual Theme & Brand Atmosphere", "Design Tokens"],
+    instructions: "Write YAML front matter with source metadata. Describe the overall visual theme, mood, and brand atmosphere. Output ALL design tokens with ```css custom properties (colors, typography, spacing, radius, shadows, gradients, effects, motion, breakpoints)."
+  },
+  {
+    id: "typography-color",
+    name: "Typography & Color",
+    sections: ["Typography System", "Color System & Semantic Roles"],
+    instructions: "Define the complete type scale with font stacks, sizes, weights, letter-spacing, line-heights. Map colors to semantic roles (primary, secondary, accent, surface, text, border, error, success, warning). Include ```css blocks."
+  },
+  {
+    id: "layout-components",
+    name: "Layout & Components",
+    sections: ["Layout, Grid & Spacing", "Component Specifications", "Interaction & Feedback States"],
+    instructions: "Document grid system, max-widths, padding, gaps, z-index stacking. Detail each component family (buttons, cards, forms, nav, modals) with full CSS. Include hover, focus, active, disabled states with ```css blocks."
+  },
+  {
+    id: "motion-responsive-a11y",
+    name: "Motion, Responsive & A11y",
+    sections: ["Motion & Animation Guidelines", "Responsive Behavior", "Accessibility Requirements"],
+    instructions: "Document all @keyframes, transitions, easing curves, durations. Define breakpoints and responsive patterns. List ARIA requirements, focus management, color contrast, keyboard navigation."
+  },
+  {
+    id: "implementation",
+    name: "Implementation Guide",
+    sections: ["Content & Page Structure", "Tech Stack Signals & Implementation Guidance", "AI Agent Implementation Prompt", "Do's and Don'ts", "Validation Checklist", "Evidence, Assumptions & Gaps"],
+    instructions: "Describe page layout and content hierarchy. Identify frameworks/libraries from analysis. Write an actionable implementation prompt for AI coding agents. List do's and don'ts. Create a validation checklist. Document evidence sources, assumptions, and gaps."
+  }
+];
+
+export function buildSectionPrompt(
+  group: SectionGroup,
+  baseContext: string
+): string {
+  return [
+    baseContext,
     "",
-    "ANALYSIS GUIDELINES:",
-    "- Merge duplicate components into families.",
-    "- Explain each shadow layer (depth/proximity/highlight/emboss).",
-    "- Glass/backdrop-filter: output complete CSS with -webkit- prefix.",
-    "- Document z-index stacking order when multiple layers exist.",
-    "- Preserve exact cubic-bezier() and gradient values.",
-    "- DO NOT: invent hover colors, active states, framework versions, or @keyframes content.",
-    "- Output ONLY the DESIGN.md content."
+    `Generate ONLY these sections: ${group.sections.join(", ")}`,
+    "",
+    `TASK: ${group.instructions}`,
+    "",
+    "Output valid Markdown with ```css blocks. Use EXACT values from the analysis JSON above."
   ].join("\n");
 }

@@ -113,7 +113,7 @@ export function openAiCompatibleProvider(
 
   return {
     kind: "openai-compatible",
-    async complete({ analysis, prompt }) {
+    async complete({ analysis, prompt, systemPromptOverride, maxTokensOverride }) {
       const startedAt = Date.now();
       const useStream = options.stream ?? true;
       console.info(`[llm] calling ${options.model} via ${cleanBaseUrl} (${useStream ? "stream" : "json"})`);
@@ -124,11 +124,11 @@ export function openAiCompatibleProvider(
       const requestBody = JSON.stringify({
         model: options.model,
         temperature: options.temperature ?? 0.2,
-        max_tokens: options.maxTokens ?? 4_000,
+        max_tokens: maxTokensOverride ?? options.maxTokens ?? 4_000,
         stream: useStream,
         messages: [
-          { role: "system", content: buildDesignSystemBrain() },
-          { role: "user", content: buildUserContent(analysis, prompt) }
+          { role: "system", content: systemPromptOverride ?? buildDesignSystemBrain() },
+          { role: "user", content: prompt }
         ]
       });
       console.info(`[llm] compacted request payload ${requestBody.length} chars, timeout ${timeoutMs}ms`);
