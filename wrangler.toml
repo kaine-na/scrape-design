@@ -1,6 +1,7 @@
 # Cloudflare Pages + Next.js configuration
 # Enables Node.js compatibility for API routes (buffer, async_hooks, etc.)
 
+name = "scrape-design"
 compatibility_flags = ["nodejs_compat"]
 compatibility_date = "2025-05-06"
 
