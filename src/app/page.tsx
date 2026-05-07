@@ -15,6 +15,8 @@ interface LogEntry {
   tag: "info" | "success" | "warn" | "error";
   message: string;
   timestamp: string;
+  elapsed?: string;
+  status?: "running" | "done" | "failed";
 }
 
 interface ExtractApiResponse {
@@ -35,22 +37,23 @@ interface AnalyzeApiResponse {
 }
 
 /* ------------------------------------------------------------------ */
-/* Analysis stages (intermediate only - "success" is API-driven)       */
+/* Fun analysis stages with personality                                 */
 /* ------------------------------------------------------------------ */
 
 const intermediateStages = [
-  { tag: "info" as const, msg: "Connecting to Browserless headless browser" },
-  { tag: "info" as const, msg: "Loading page in high-fidelity browser session" },
-  { tag: "info" as const, msg: "Extracting computed styles from rendered DOM" },
-  { tag: "info" as const, msg: "Collecting design tokens: colors, typography, spacing" },
-  { tag: "info" as const, msg: "Capturing shadow layers, gradients, glass effects" },
-  { tag: "info" as const, msg: "Detecting component families and interaction states" },
-  { tag: "info" as const, msg: "Parsing motion, animations, and transition curves" },
-  { tag: "info" as const, msg: "Compacting Browserless analysis payload for LLM context window" },
-  { tag: "info" as const, msg: "Calling LLM provider to generate DESIGN.md" }
+  { tag: "info" as const, msg: "Spinning up headless browser in the cloud", fun: "Did you know? Headless Chrome can render pages 3x faster than your browser" },
+  { tag: "info" as const, msg: "Navigating to target URL", fun: "Imagine your website being analyzed by a robot with really good taste" },
+  { tag: "info" as const, msg: "Waiting for JavaScript to finish doing its thing", fun: "Fun fact: the average webpage runs 17 JavaScript files before paint" },
+  { tag: "info" as const, msg: "Extracting computed styles from live DOM", fun: "Your CSS has 847 rules but only uses like 200 of them. We all do it." },
+  { tag: "info" as const, msg: "Collecting color tokens and palette", fun: "Every shade of gray has a name. We will find them all." },
+  { tag: "info" as const, msg: "Sampling typography: fonts, sizes, weights", fun: "The average website uses 6 fonts. The recommended amount is 2. Oops." },
+  { tag: "info" as const, msg: "Detecting shadows, gradients, and glass effects", fun: "Modern web design: making things look like they float. We see through it." },
+  { tag: "info" as const, msg: "Mapping components: buttons, cards, forms, nav", fun: "A button is just a div with confidence and a cursor pointer." },
+  { tag: "info" as const, msg: "Packaging analysis for the LLM brain", fun: "Feeding your website's soul into an AI. What could go wrong?" },
+  { tag: "info" as const, msg: "LLM is writing your DESIGN.md now", fun: "The AI has opinions about your border-radius choices. Brace yourself." },
 ];
 
-const stageDelays = [600, 300, 400, 250, 250, 200, 180, 150, 400];
+const stageDelays = [500, 400, 600, 350, 300, 250, 250, 200, 150, 150, 300];
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -297,7 +300,15 @@ export default function HomePage() {
     setLogs([]);
     setIsLoading(true);
 
-    /* Schedule intermediate logs */
+    const startTime = Date.now();
+
+    function elapsed(): string {
+      const ms = Date.now() - startTime;
+      if (ms < 1000) return `${ms}ms`;
+      return `${(ms / 1000).toFixed(1)}s`;
+    }
+
+    /* Schedule intermediate logs with fun facts */
     let stageIdx = 0;
     let timerId: ReturnType<typeof setTimeout>;
 
@@ -308,21 +319,33 @@ export default function HomePage() {
       timerId = setTimeout(() => {
         setLogs((prev) => [
           ...prev,
-          { id: prev.length, tag: stage.tag, message: stage.msg, timestamp: now() }
+          { id: prev.length, tag: stage.tag, message: stage.msg, timestamp: now(), elapsed: elapsed(), status: "running" }
         ]);
+        /* Show fun fact as a second log entry */
+        if (stage.fun) {
+          setLogs((prev) => [
+            ...prev,
+            { id: prev.length, tag: "info" as const, message: stage.fun, timestamp: now(), elapsed: elapsed(), status: undefined }
+          ]);
+        }
         stageIdx++;
         scheduleLog();
       }, delay);
     }
 
-    setLogs([{ id: 0, tag: "info", message: intermediateStages[0].msg, timestamp: now() }]);
+    setLogs([{ id: 0, tag: "info", message: intermediateStages[0].msg, timestamp: now(), elapsed: elapsed(), status: "running" }]);
     stageIdx = 1;
     timerId = setTimeout(scheduleLog, stageDelays[0] ?? 600);
 
     try {
+      /* Mark previous stages as done when real progress happens */
+      const markPreviousDone = () => {
+        setLogs((prev) => prev.map((l) => l.status === "running" ? { ...l, status: "done" as const } : l));
+      };
+
       setLogs((prev) => [
         ...prev,
-        { id: prev.length, tag: "info", message: "Starting high-fidelity Browserless extraction", timestamp: now() }
+        { id: prev.length, tag: "info", message: "Starting high-fidelity Browserless extraction", timestamp: now(), elapsed: elapsed(), status: "running" }
       ]);
       console.info("[client] requesting high-fidelity extraction for", targetUrl);
 
@@ -341,9 +364,10 @@ export default function HomePage() {
           if (validation.success) {
             analysis = validation.data;
             console.info("[client] high-fidelity extraction complete", extractedBody.meta ?? {});
+            markPreviousDone();
             setLogs((prev) => [
               ...prev,
-              { id: prev.length, tag: "success", message: "High-fidelity Browserless extraction completed", timestamp: now() }
+              { id: prev.length, tag: "success", message: "High-fidelity Browserless extraction completed", timestamp: now(), elapsed: elapsed(), status: "done" }
             ]);
           } else {
             fallbackMessage = "High-fidelity extraction returned malformed analysis; using fast fallback";
@@ -367,7 +391,7 @@ export default function HomePage() {
       if (!analysis) {
         setLogs((prev) => [
           ...prev,
-          { id: prev.length, tag: "warn", message: fallbackMessage, timestamp: now() }
+          { id: prev.length, tag: "warn", message: fallbackMessage, timestamp: now(), elapsed: elapsed(), status: "failed" }
         ]);
 
         /* Client-side fallback extraction */
@@ -400,14 +424,14 @@ export default function HomePage() {
 
       setLogs((prev) => [
         ...prev,
-        { id: prev.length, tag: "success", message: "DESIGN.md generated successfully", timestamp: now() }
+        { id: prev.length, tag: "success", message: "DESIGN.md generated successfully", timestamp: now(), elapsed: elapsed(), status: "done" }
       ]);
       setMarkdown(body.markdown);
       setShowPreview(true);
     } catch (caught) {
       setLogs((prev) => [
         ...prev,
-        { id: prev.length, tag: "error", message: caught instanceof Error ? caught.message : "Analysis failed", timestamp: now() }
+        { id: prev.length, tag: "error", message: caught instanceof Error ? caught.message : "Analysis failed", timestamp: now(), elapsed: elapsed(), status: "failed" }
       ]);
       setError(caught instanceof Error ? caught.message : "The design analysis failed.");
     } finally {
@@ -520,13 +544,21 @@ export default function HomePage() {
             </div>
             <div className="log-body">
               {logs.map((entry) => (
-                <div key={entry.id} className="log-entry">
-                  <span className="log-timestamp">{entry.timestamp}</span>
+                <div key={entry.id} className={`log-entry ${entry.status === "done" ? "log-done" : ""} ${entry.status === "failed" ? "log-failed" : ""} ${!entry.status && entry.tag === "info" ? "log-fun" : ""}`}>
+                  <span className="log-timestamp">
+                    {entry.timestamp}
+                    {entry.elapsed && <span className="log-elapsed">+{entry.elapsed}</span>}
+                  </span>
                   <span className={`log-tag ${entry.tag}`}>[{entry.tag.toUpperCase()}]</span>
-                  <span className="log-msg">{entry.message}</span>
+                  <span className="log-msg">
+                    {entry.message}
+                    {entry.status === "running" && <span className="log-cursor" />}
+                    {entry.status === "done" && <span className="log-check">&#10003;</span>}
+                    {entry.status === "failed" && <span className="log-x">&#10007;</span>}
+                  </span>
                 </div>
               ))}
-              {isLoading && (
+              {isLoading && logs.every((l) => l.status !== "running") && (
                 <div className="log-entry">
                   <span className="log-timestamp">{now()}</span>
                   <span className="log-tag info">[INFO]</span>
