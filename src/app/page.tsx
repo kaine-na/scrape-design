@@ -189,6 +189,8 @@ function cleanMarkdown(raw: string): string {
   return raw
     .replace(/^---[\s\S]*?---\n?/, "")
     .replace(/<!--\s*LLM:[\s\S]*?-->/g, "")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -242,6 +244,7 @@ export default function HomePage() {
   const [viewMode, setViewMode] = useState<"rendered" | "raw">("rendered");
   const [showPreview, setShowPreview] = useState(false);
   const [iframeFailed, setIframeFailed] = useState(false);
+  const [showMiMoModal, setShowMiMoModal] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const analyzedUrlRef = useRef("");
@@ -271,18 +274,19 @@ export default function HomePage() {
     const y = ((event.clientY - rect.top) / rect.height) * 100;
     button.style.setProperty("--ripple-x", `${x}%`);
     button.style.setProperty("--ripple-y", `${y}%`);
-    /* Clean up after animation completes */
-    const cleanup = () => {
+
+    const clearRipple = () => {
       button.style.removeProperty("--ripple-x");
       button.style.removeProperty("--ripple-y");
+    };
+
+    const fallbackTimer = setTimeout(clearRipple, 1000);
+    const cleanup = () => {
+      clearTimeout(fallbackTimer);
+      clearRipple();
       button.removeEventListener("transitionend", cleanup);
     };
     button.addEventListener("transitionend", cleanup, { once: true });
-    /* Fallback: clear after 1s if transitionend never fires */
-    setTimeout(() => {
-      button.style.removeProperty("--ripple-x");
-      button.style.removeProperty("--ripple-y");
-    }, 1000);
   }, []);
 
   /* Submit */
@@ -394,22 +398,77 @@ export default function HomePage() {
         throw new Error("Browserless extraction timed out after maximum retries. Please try again.");
       }
 
-      /* Send to LLM API */
-      const response = await fetch("/api/analyze", {
+      /* Step 2: Stream DESIGN.md from /api/generate (SSE) */
+      setLogs((prev) => [
+        ...prev.map((entry) => entry.status === "running" ? { ...entry, status: "done" as const } : entry),
+        { id: prev.length, tag: "info", message: "Streaming DESIGN.md generation started", timestamp: now(), elapsed: elapsed(), status: "running" }
+      ]);
+
+      const genResponse = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analysis, url: targetUrl })
+        body: JSON.stringify({ analysis })
       });
-      const body = (await response.json()) as AnalyzeApiResponse;
-      if (!response.ok || !body.markdown) {
-        throw new Error(body.error || "The design analysis failed.");
+
+      if (!genResponse.ok) {
+        let errorMsg = `Generation failed (HTTP ${genResponse.status}).`;
+        try {
+          const errorBody = await genResponse.json() as { error?: string };
+          if (errorBody.error) errorMsg = errorBody.error;
+        } catch { /* non-JSON error body */ }
+        throw new Error(errorMsg);
+      }
+
+      if (!genResponse.body) {
+        throw new Error("Generation response missing body.");
+      }
+
+      const reader = genResponse.body.getReader();
+      const decoder = new TextDecoder();
+      let sseBuffer = "";
+      let accumulated = "";
+      setShowPreview(true);
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        sseBuffer += decoder.decode(value, { stream: true });
+        const events = sseBuffer.split("\n\n");
+        sseBuffer = events.pop() ?? "";
+
+        for (const event of events) {
+          const lines = event.split("\n");
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const data = trimmed.slice(5).trim();
+
+            try {
+              const parsed = JSON.parse(data) as { type: string; content?: string; message?: string };
+              if (parsed.type === "chunk" && parsed.content) {
+                accumulated += parsed.content;
+                setMarkdown(accumulated);
+              } else if (parsed.type === "error") {
+                throw new Error(parsed.message ?? "Generation error");
+              }
+              /* type: "done" — no action needed, loop will end */
+            } catch (e) {
+              if (e instanceof SyntaxError) continue; /* skip malformed JSON */
+              throw e;
+            }
+          }
+        }
+      }
+
+      if (!accumulated) {
+        throw new Error("LLM returned empty response.");
       }
 
       setLogs((prev) => [
         ...prev.map((entry) => entry.status === "running" ? { ...entry, status: "done" as const } : entry),
-        { id: prev.length, tag: "success", message: "DESIGN.md generated successfully", timestamp: now(), elapsed: elapsed(), status: "done" }
+        { id: prev.length, tag: "success", message: `DESIGN.md streamed successfully (${accumulated.length.toLocaleString()} chars)`, timestamp: now(), elapsed: elapsed(), status: "done" }
       ]);
-      setMarkdown(body.markdown);
       setShowPreview(true);
     } catch (caught) {
       setLogs((prev) => [
@@ -679,7 +738,79 @@ export default function HomePage() {
         </a>
         <span className="footer-divider" />
         <span className="footer-text">Open-source design system extraction</span>
+        <span className="footer-divider" />
+        <button
+          type="button"
+          className="mimo-link"
+          onClick={() => setShowMiMoModal(true)}
+          aria-label="API support by Xiaomi MiMo"
+        >
+          <span className="mimo-api-dot" />
+          <span>API support by</span>
+          <span className="mimo-wordmark">MiMo</span>
+        </button>
       </footer>
+
+      {/* ---- MiMo Modal ---- */}
+      {showMiMoModal && (
+        <div className="mimo-modal-overlay" onClick={() => setShowMiMoModal(false)}>
+          <div className="mimo-modal" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="mimo-modal-close" onClick={() => setShowMiMoModal(false)} aria-label="Close">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+            <div className="mimo-modal-header">
+              <div className="mimo-modal-mark">
+                <span className="mimo-api-dot" />
+                <span>MiMo</span>
+              </div>
+              <div>
+                <h3 className="mimo-modal-title">API support by Xiaomi MiMo</h3>
+                <p className="mimo-modal-subtitle">Xiaomi&apos;s MiMo Open Platform for flagship MiMo V2.5 and the rest of the model lineup.</p>
+              </div>
+            </div>
+            <div className="mimo-modal-body">
+              <div className="mimo-credits-badge">
+                <span className="mimo-credits-amount">$2</span>
+                <span className="mimo-credits-label">in API credits</span>
+              </div>
+              <p className="mimo-instructions">
+                Sign up with the code below and you&apos;ll instantly get <strong>$2 in API credits</strong> (valid 40 days).
+                After signup, enter the code at the <strong>bottom-left of the console</strong>.
+              </p>
+              <div className="mimo-code-block">
+                <span className="mimo-code-label">Referral Code</span>
+                <code className="mimo-code-value">XB8KDV</code>
+              </div>
+            </div>
+            <div className="mimo-modal-footer">
+              <a
+                href="https://platform.xiaomimimo.com?ref=XB8KDV"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mimo-cta"
+              >
+                Sign up with code
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/>
+                  <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </a>
+              <a
+                href="https://platform.xiaomimimo.com/console"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mimo-secondary-link"
+              >
+                Go to Console →
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

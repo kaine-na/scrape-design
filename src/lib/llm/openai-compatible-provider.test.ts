@@ -1,136 +1,134 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  createDesignMarkdownProviderFromEnv,
-  openAiCompatibleProvider,
-  parseOpenAiSseStream
+  createLlmSseStream,
+  createLlmStreamOptionsFromEnv
 } from "./openai-compatible-provider";
 
-const analysis = {
-  source: {
-    url: "https://example.com/",
-    analyzedAt: "2026-05-05T00:00:00.000Z",
-    scanType: "single-page" as const
-  },
-  confidence: { overall: "medium" as const },
-  page: { title: "Example", sections: [] },
-  tokens: {
-    colors: [],
-    typography: [],
-    spacing: [],
-    radius: [],
-    shadows: [],
-    gradients: [],
-    effects: [],
-    motion: [],
-    breakpoints: []
-  },
-  components: [],
-  evidence: [],
-  assumptions: [],
-  gaps: []
-};
+async function collectStreamText(stream: ReadableStream<Uint8Array>): Promise<string[]> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  const events: string[] = [];
+  let buffer = "";
 
-describe("openAiCompatibleProvider", () => {
-  it("calls an OpenAI-compatible chat completions endpoint with streaming enabled by default", async () => {
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"# DESIGN.md"}}]}\n\n'));
-        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"\\nGenerated"}}]}\n\n'));
-        controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
-        controller.close();
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const line = part.trim();
+      if (line.startsWith("data:")) events.push(line.slice(5).trim());
+    }
+  }
+
+  return events;
+}
+
+function mockUpstreamSse(chunks: string[], done = true): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: chunk } }] })}\n\n`)
+        );
       }
-    });
-    const fetchMock = vi.fn(async () => new Response(stream));
+      if (done) controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.close();
+    }
+  });
+}
 
-    const provider = openAiCompatibleProvider({
-      apiKey: "test-key",
-      baseUrl: "https://provider.example/v1/",
-      model: "test-model",
-      fetch: fetchMock
-    });
+describe("createLlmSseStream", () => {
+  it("pipes upstream SSE chunks as JSON events with type=chunk", async () => {
+    const fetchMock = vi.fn(async () => new Response(mockUpstreamSse(["Hello", " world"])));
 
-    const markdown = await provider.complete({ analysis, prompt: "Generate DESIGN.md" });
+    const stream = createLlmSseStream(
+      {
+        apiKey: "test-key",
+        baseUrl: "https://provider.example/v1/",
+        model: "test-model",
+        fetch: fetchMock
+      },
+      "system prompt",
+      "user prompt"
+    );
 
-    expect(markdown).toBe("# DESIGN.md\nGenerated");
+    const events = await collectStreamText(stream);
+    const parsed = events.map((e) => JSON.parse(e));
+
+    expect(parsed).toEqual([
+      { type: "chunk", content: "Hello" },
+      { type: "chunk", content: " world" },
+      { type: "done" }
+    ]);
+
     expect(fetchMock).toHaveBeenCalledWith(
       "https://provider.example/v1/chat/completions",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
           Authorization: "Bearer test-key",
-          "Content-Type": "application/json",
           Accept: "text/event-stream"
         })
       })
     );
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    const body = JSON.parse(String(init.body));
-    expect(body.model).toBe("test-model");
-    expect(body.stream).toBe(true);
-    expect(body.messages[1].content).toContain("Generate DESIGN.md");
   });
 
-  it("can parse non-streaming JSON responses when stream is disabled", async () => {
-    const fetchMock = vi.fn(async () =>
-      Response.json({ choices: [{ message: { content: "# DESIGN.md\nGenerated" } }] })
+  it("sends error event when upstream returns non-ok", async () => {
+    const fetchMock = vi.fn(async () => new Response("upstream failed", { status: 502 }));
+
+    const stream = createLlmSseStream(
+      { apiKey: "k", baseUrl: "https://x/v1", model: "m", fetch: fetchMock },
+      "s",
+      "u"
     );
 
-    const provider = openAiCompatibleProvider({
-      apiKey: "test-key",
-      baseUrl: "https://provider.example/v1/",
-      model: "test-model",
-      stream: false,
-      fetch: fetchMock
-    });
-
-    const markdown = await provider.complete({ analysis, prompt: "Generate DESIGN.md" });
-
-    expect(markdown).toBe("# DESIGN.md\nGenerated");
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    const body = JSON.parse(String(init.body));
-    expect(body.stream).toBe(false);
+    const events = (await collectStreamText(stream)).map((e) => JSON.parse(e));
+    expect(events[0].type).toBe("error");
+    expect(events[0].message).toContain("502");
   });
 
-  it("rejects non-streaming responses truncated by max_tokens", async () => {
-    const fetchMock = vi.fn(async () =>
-      Response.json({ choices: [{ message: { content: "# Partial" }, finish_reason: "length" }] })
+  it("sends error event on fetch rejection", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("network down");
+    });
+
+    const stream = createLlmSseStream(
+      { apiKey: "k", baseUrl: "https://x/v1", model: "m", fetch: fetchMock },
+      "s",
+      "u"
     );
 
-    const provider = openAiCompatibleProvider({
-      apiKey: "test-key",
-      baseUrl: "https://provider.example/v1/",
-      model: "test-model",
-      stream: false,
-      fetch: fetchMock
-    });
+    const events = (await collectStreamText(stream)).map((e) => JSON.parse(e));
+    expect(events[0]).toEqual({ type: "error", message: "network down" });
+  });
+});
 
-    await expect(provider.complete({ analysis, prompt: "Generate DESIGN.md" })).rejects.toThrow("truncated");
+describe("createLlmStreamOptionsFromEnv", () => {
+  it("returns null when env is incomplete", () => {
+    expect(createLlmStreamOptionsFromEnv({})).toBeNull();
+    expect(createLlmStreamOptionsFromEnv({ LLM_API_KEY: "x" })).toBeNull();
   });
 
-  it("parses OpenAI-compatible SSE chunks", async () => {
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n'));
-        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":" world"}}]}\n\n'));
-        controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
-        controller.close();
-      }
-    });
-
-    await expect(parseOpenAiSseStream(new Response(stream))).resolves.toBe("Hello world");
-  });
-
-  it("falls back to the mock provider when env is incomplete", () => {
-    const provider = createDesignMarkdownProviderFromEnv({});
-    expect(provider.kind).toBe("mock");
-  });
-
-  it("uses OpenAI-compatible provider when env is complete", () => {
-    const provider = createDesignMarkdownProviderFromEnv({
+  it("returns full options when env is complete", () => {
+    const options = createLlmStreamOptionsFromEnv({
       LLM_API_KEY: "key",
       LLM_BASE_URL: "https://api.openai.com/v1",
-      LLM_MODEL: "gpt-4.1-mini"
+      LLM_MODEL: "gpt-4.1-mini",
+      LLM_TEMPERATURE: "0.3",
+      LLM_MAX_TOKENS: "8000",
+      LLM_TIMEOUT_MS: "90000"
     });
-    expect(provider.kind).toBe("openai-compatible");
+
+    expect(options).toEqual({
+      apiKey: "key",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4.1-mini",
+      temperature: 0.3,
+      maxTokens: 8000,
+      timeoutMs: 90000
+    });
   });
 });

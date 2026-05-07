@@ -1459,3 +1459,277 @@ button.secondary:active:not(:disabled) {
     font-size: 14px;
   }
 }
+
+/* ─── MiMo Footer Link ───────────────────────────────── */
+
+button.mimo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+button.mimo-link:hover:not(:disabled) {
+  background: #ffffff;
+  color: #475569;
+  border-color: rgba(255, 105, 0, 0.25);
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 24px rgba(255, 105, 0, 0.12),
+    0 2px 6px rgba(15, 23, 42, 0.06),
+    0 0 0 1px rgba(255, 105, 0, 0.08);
+}
+
+button.mimo-link:hover:not(:disabled) .mimo-wordmark {
+  color: #E85D00;
+}
+
+button.mimo-link:active:not(:disabled) {
+  background: #ffffff;
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+button.mimo-link .mimo-api-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #FF6900;
+  flex-shrink: 0;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+button.mimo-link:hover:not(:disabled) .mimo-api-dot {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 4px rgba(255, 105, 0, 0.15);
+}
+
+button.mimo-link .mimo-wordmark {
+  color: #FF6900;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  transition: color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── MiMo Modal ────────────────────────────────────── */
+
+.mimo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.36);
+  backdrop-filter: blur(10px);
+  animation: mimoFadeIn 0.2s ease;
+  padding: 24px;
+}
+
+@keyframes mimoFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mimoSlideUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.mimo-modal {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  max-width: 460px;
+  width: 100%;
+  overflow: hidden;
+  animation: mimoSlideUp 0.3s var(--ease-spring);
+}
+
+.mimo-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.2s var(--ease-out);
+}
+
+.mimo-modal-close:hover {
+  background: #eef6f8;
+  color: var(--accent-strong);
+  border-color: var(--accent-glow-strong);
+}
+
+.mimo-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 28px 0;
+}
+
+.mimo-modal-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.mimo-modal-title {
+  font-size: 18px;
+  font-weight: 750;
+  color: var(--ink);
+  margin: 0 0 4px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.mimo-modal-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.mimo-modal-body {
+  padding: 24px 28px;
+}
+
+.mimo-credits-badge {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.08) 0%, rgba(8, 145, 178, 0.14) 100%);
+  border: 1px solid var(--accent-glow-strong);
+  border-radius: var(--radius-md);
+}
+
+.mimo-credits-amount {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--accent-strong);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.mimo-credits-label {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.mimo-instructions {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0 0 18px;
+}
+
+.mimo-instructions strong {
+  color: var(--ink);
+}
+
+.mimo-code-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 18px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.mimo-code-label {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--faint);
+}
+
+.mimo-code-value {
+  font-size: 24px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--accent-strong);
+  letter-spacing: 0.12em;
+}
+
+.mimo-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 28px 28px;
+}
+
+.mimo-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 750;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: all 0.2s var(--ease-out);
+  box-shadow: var(--shadow-sm);
+}
+
+.mimo-cta:hover {
+  background: var(--accent-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px var(--accent-glow-strong);
+}
+
+.mimo-cta:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.mimo-secondary-link {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.mimo-secondary-link:hover {
+  color: var(--accent-strong);
+}

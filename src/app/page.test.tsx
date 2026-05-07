@@ -61,6 +61,19 @@ describe("HomePage", () => {
   });
 
   it("uses Browserless extraction then LLM generation", async () => {
+    function createSseStream(chunks: string[]) {
+      const encoder = new TextEncoder();
+      return new ReadableStream({
+        start(controller) {
+          for (const chunk of chunks) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "chunk", content: chunk })}\n\n`));
+          }
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
+          controller.close();
+        }
+      });
+    }
+
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const requestUrl = String(input);
       if (requestUrl === "/api/extract") {
@@ -69,8 +82,10 @@ describe("HomePage", () => {
           meta: { provider: "browserless", browser: "chrome", region: "sfo" }
         });
       }
-      if (requestUrl === "/api/analyze") {
-        return Response.json({ markdown: "# DESIGN.md" });
+      if (requestUrl === "/api/generate") {
+        return new Response(createSseStream(["# DESIGN.md"]), {
+          headers: { "Content-Type": "text/event-stream" }
+        });
       }
       return Response.json({}, { status: 404 });
     });
@@ -83,11 +98,11 @@ describe("HomePage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /generate/i }));
 
-    await screen.findByText(/DESIGN.md generated successfully/i);
+    await screen.findByText(/DESIGN.md streamed successfully/i);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/extract");
-    expect(fetchMock.mock.calls[1][0]).toBe("/api/analyze");
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/generate");
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
       url: "https://example.com",
       mode: "high-fidelity"

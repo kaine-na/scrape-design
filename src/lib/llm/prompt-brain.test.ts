@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AnalysisResult } from "@/lib/analysis/types";
 import {
-  buildDesignMarkdownTaskPrompt,
-  buildDesignSystemBrain,
-  compactAnalysisForPrompt
+  buildCompactGenerationPrompt,
+  buildDesignSystemBrain
 } from "./prompt-brain";
 
 const analysis: AnalysisResult = {
@@ -16,11 +15,7 @@ const analysis: AnalysisResult = {
   page: {
     title: "Example",
     description: "A".repeat(500),
-    sections: Array.from({ length: 20 }, (_, order) => ({
-      role: order === 0 ? "hero" : "section",
-      heading: `Heading ${order}`,
-      order
-    }))
+    sections: []
   },
   tokens: {
     colors: Array.from({ length: 25 }, (_, index) => ({
@@ -50,22 +45,12 @@ const analysis: AnalysisResult = {
     states: [],
     confidence: "medium"
   })),
-  evidence: Array.from({ length: 40 }, (_, index) => `Evidence ${index}`),
+  evidence: [],
   assumptions: [],
   gaps: []
 };
 
 describe("prompt brain", () => {
-  it("compacts analysis before sending it to the LLM", () => {
-    const compact = compactAnalysisForPrompt(analysis);
-
-    expect("description" in compact.page).toBe(false);
-    expect(compact.page.sections.length).toBeLessThanOrEqual(20);
-    expect(compact.tokens.colors.length).toBeLessThanOrEqual(12);
-    expect(compact.components.length).toBeLessThanOrEqual(8);
-    expect(compact.evidence.length).toBeLessThanOrEqual(20);
-  });
-
   it("frames the brain without self-identifying as an AI", () => {
     const brain = buildDesignSystemBrain();
 
@@ -73,11 +58,23 @@ describe("prompt brain", () => {
     expect(brain.toLowerCase()).not.toContain("you are an ai");
   });
 
-  it("creates a concrete DESIGN.md task prompt", () => {
-    const prompt = buildDesignMarkdownTaskPrompt("https://example.com/");
+  it("builds a compact generation prompt under 10K chars", () => {
+    const prompt = buildCompactGenerationPrompt(analysis);
 
+    expect(prompt.length).toBeLessThan(10_000);
+    expect(prompt).toContain("https://example.com/");
     expect(prompt).toContain("NEVER invent values");
-    expect(prompt).toContain("Merge duplicate components");
+    expect(prompt).toContain("REQUIRED SECTIONS");
     expect(prompt).toContain("Do NOT summarize page content");
+  });
+
+  it("limits colors, components, and other tokens in the compact prompt", () => {
+    const prompt = buildCompactGenerationPrompt(analysis);
+    const dataSection = prompt.slice(prompt.indexOf("EXTRACTED DESIGN DATA:"));
+    const parsed = JSON.parse(dataSection.slice(dataSection.indexOf("{")));
+
+    expect(parsed.colors.primary.length).toBeLessThanOrEqual(8);
+    expect(parsed.components.length).toBeLessThanOrEqual(6);
+    expect(parsed.colors.neutral.length).toBeGreaterThan(0);
   });
 });
