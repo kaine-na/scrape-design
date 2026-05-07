@@ -150,7 +150,7 @@ describe("HomePage", () => {
     expect(fetchMock.mock.calls[1][0]).toBe("/api/analyze");
     const analyzeBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
     expect(analyzeBody.analysis.page.title).toBe("Fallback Example");
-    expect(screen.getByText(/High-fidelity extraction failed; using fast fallback/i)).toBeInTheDocument();
+    expect(screen.getByText(/High-fidelity extraction failed.*using fast fallback/i)).toBeInTheDocument();
   });
 
   it("falls back to the client extractor when high-fidelity analysis is malformed", async () => {

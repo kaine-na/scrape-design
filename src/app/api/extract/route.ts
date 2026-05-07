@@ -59,25 +59,32 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
+    console.error("[api/extract] invalid JSON body");
     return jsonError("Invalid JSON body.", "INVALID_JSON", 400);
   }
 
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {
+    console.error("[api/extract] invalid request body:", parsed.error.flatten());
     return jsonError("Invalid request body.", "INVALID_REQUEST", 400);
   }
 
   const urlResult = validatePublicHttpUrl(parsed.data.url);
   if (!urlResult.ok) {
+    console.error("[api/extract] URL validation failed:", urlResult.error);
     return jsonError(urlResult.error, "INVALID_URL", 400);
   }
 
+  console.info("[api/extract] extracting:", urlResult.url);
+
   const config = getBrowserlessConfig(await getBrowserlessEnv());
   if (!config.enabled) {
+    console.error("[api/extract] Browserless not configured. Set BROWSERLESS_API_TOKEN.");
     return jsonError("Browserless is not configured.", config.error, 503);
   }
 
   if (activeBrowserlessExtractions >= config.maxConcurrency) {
+    console.warn("[api/extract] concurrency limit reached:", activeBrowserlessExtractions);
     return jsonError(
       "Browserless extraction concurrency limit reached.",
       "BROWSERLESS_QUOTA_OR_CONCURRENCY",
@@ -94,8 +101,11 @@ export async function POST(request: Request) {
   try {
     const dnsResult = await preflightPublicHostnameDns(urlResult.hostname);
     if (!dnsResult.ok) {
+      console.error("[api/extract] DNS preflight rejected:", urlResult.hostname, dnsResult.error);
       return jsonError(dnsResult.error, "INVALID_URL", 400);
     }
+
+    console.info("[api/extract] DNS OK, calling Browserless:", endpoint.host);
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -109,6 +119,7 @@ export async function POST(request: Request) {
     const text = await response.text();
     if (!response.ok) {
       const code = mapBrowserlessError(response.status, text);
+      console.error("[api/extract] Browserless HTTP error:", response.status, code, text.slice(0, 500));
       return jsonError("Browserless extraction failed.", code, 502);
     }
 
@@ -116,6 +127,7 @@ export async function POST(request: Request) {
     try {
       json = JSON.parse(text);
     } catch {
+      console.error("[api/extract] Browserless returned non-JSON:", text.slice(0, 500));
       return jsonError(
         "Browserless returned an invalid response.",
         "BROWSERLESS_REQUEST_FAILED",
@@ -126,11 +138,13 @@ export async function POST(request: Request) {
     const graphQlErrorMessage = getGraphQlErrorMessage(json);
     if (graphQlErrorMessage) {
       const code = mapBrowserlessError(200, graphQlErrorMessage);
+      console.error("[api/extract] Browserless GraphQL errors:", graphQlErrorMessage);
       return jsonError("Browserless extraction failed.", code, 502);
     }
 
     const raw = getBrowserlessRawValue(json);
     if (raw == null) {
+      console.error("[api/extract] Browserless returned empty evaluate value. Response:", JSON.stringify(json).slice(0, 500));
       return jsonError(
         "Browserless returned an empty extraction.",
         "EXTRACTION_EMPTY",
@@ -142,6 +156,7 @@ export async function POST(request: Request) {
     try {
       rawValue = typeof raw === "string" ? JSON.parse(raw) : raw;
     } catch {
+      console.error("[api/extract] evaluate value is not valid JSON:", String(raw).slice(0, 300));
       return jsonError(
         "Browserless returned an invalid extraction.",
         "EXTRACTION_INVALID",
@@ -155,6 +170,7 @@ export async function POST(request: Request) {
     });
     const validation = analysisResultSchema.safeParse(analysis);
     if (!validation.success) {
+      console.error("[api/extract] analysis failed schema validation:", validation.error.flatten());
       return jsonError(
         "Extracted analysis failed schema validation.",
         "EXTRACTION_INVALID",
@@ -162,6 +178,7 @@ export async function POST(request: Request) {
       );
     }
 
+    console.info("[api/extract] extraction successful:", analysis.tokens.colors.length, "colors,", analysis.components.length, "components");
     return NextResponse.json({
       analysis: validation.data,
       meta: {
@@ -173,6 +190,11 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const isAbort = error instanceof Error && error.name === "AbortError";
+    if (isAbort) {
+      console.error("[api/extract] extraction timed out after", config.timeoutMs, "ms");
+    } else {
+      console.error("[api/extract] extraction threw:", error);
+    }
     return jsonError(
       isAbort
         ? "Browserless extraction timed out."

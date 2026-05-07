@@ -353,9 +353,11 @@ export default function HomePage() {
             );
           }
         } else {
+          const reason = extractedBody.code ?? `HTTP_${extractResponse.status}`;
+          fallbackMessage = `High-fidelity extraction failed (${reason}); using fast fallback`;
           console.warn(
-            "[client] high-fidelity extraction unavailable; using fast fallback",
-            extractedBody.code ?? extractResponse.status
+            "[client] high-fidelity extraction unavailable:", reason,
+            extractedBody.error ?? ""
           );
         }
       } catch (extractError) {
