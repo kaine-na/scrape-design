@@ -519,27 +519,26 @@ button.secondary:active:not(:disabled) {
 .log-entry {
   display: flex;
   gap: 10px;
-  opacity: 0;
-  transform: translateX(-8px);
-  animation: log-slide-in 0.4s var(--ease-spring) forwards;
+  opacity: 1;
+  transform: none;
 }
 
 .log-entry + .log-entry {
   margin-top: 5px;
 }
 
-.log-entry:nth-child(1) { animation-delay: 0.04s; }
-.log-entry:nth-child(2) { animation-delay: 0.1s; }
-.log-entry:nth-child(3) { animation-delay: 0.16s; }
-.log-entry:nth-child(4) { animation-delay: 0.22s; }
-.log-entry:nth-child(5) { animation-delay: 0.28s; }
-.log-entry:nth-child(6) { animation-delay: 0.34s; }
-.log-entry:nth-child(7) { animation-delay: 0.4s; }
-.log-entry:nth-child(8) { animation-delay: 0.46s; }
-.log-entry:nth-child(9) { animation-delay: 0.52s; }
-.log-entry:nth-child(10) { animation-delay: 0.58s; }
-.log-entry:nth-child(11) { animation-delay: 0.64s; }
-.log-entry:nth-child(12) { animation-delay: 0.7s; }
+.log-entry:nth-child(1) { animation-delay: 0s; }
+.log-entry:nth-child(2) { animation-delay: 0s; }
+.log-entry:nth-child(3) { animation-delay: 0s; }
+.log-entry:nth-child(4) { animation-delay: 0s; }
+.log-entry:nth-child(5) { animation-delay: 0s; }
+.log-entry:nth-child(6) { animation-delay: 0s; }
+.log-entry:nth-child(7) { animation-delay: 0s; }
+.log-entry:nth-child(8) { animation-delay: 0s; }
+.log-entry:nth-child(9) { animation-delay: 0s; }
+.log-entry:nth-child(10) { animation-delay: 0s; }
+.log-entry:nth-child(11) { animation-delay: 0s; }
+.log-entry:nth-child(12) { animation-delay: 0s; }
 
 .log-timestamp {
   color: var(--faint);
@@ -577,12 +576,13 @@ button.secondary:active:not(:disabled) {
 
 .log-cursor {
   display: inline-block;
-  width: 8px;
-  height: 15px;
+  width: 7px;
+  height: 13px;
   background: var(--accent);
-  margin-left: 2px;
+  margin-left: 4px;
   vertical-align: text-bottom;
-  animation: cursor-blink 0.75s step-end infinite;
+  opacity: 0.75;
+  animation: cursor-blink 1.2s ease-in-out infinite;
 }
 
 .log-elapsed {
@@ -630,8 +630,7 @@ button.secondary:active:not(:disabled) {
 .log-entry.log-fun {
   padding: 4px 0 4px 12px;
   border-left: 2px solid rgba(8, 145, 178, 0.15);
-  opacity: 0;
-  animation: log-fun-in 0.5s var(--ease-spring) forwards;
+  opacity: 0.8;
 }
 
 .log-entry.log-fun .log-msg {

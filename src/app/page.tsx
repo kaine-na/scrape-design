@@ -317,7 +317,7 @@ export default function HomePage() {
       const delay = stageDelays[stageIdx] ?? 300;
       timerId = setTimeout(() => {
         setLogs((prev) => [
-          ...prev,
+          ...prev.map((entry) => entry.status === "running" ? { ...entry, status: "done" as const } : entry),
           { id: prev.length, tag: stage.tag, message: stage.msg, timestamp: now(), elapsed: elapsed(), status: "running" }
         ]);
         /* Show fun fact as a second log entry */
@@ -343,7 +343,7 @@ export default function HomePage() {
       };
 
       setLogs((prev) => [
-        ...prev,
+        ...prev.map((entry) => entry.status === "running" ? { ...entry, status: "done" as const } : entry),
         { id: prev.length, tag: "info", message: "Starting high-fidelity Browserless extraction", timestamp: now(), elapsed: elapsed(), status: "running" }
       ]);
       console.info("[client] requesting high-fidelity extraction for", targetUrl);
@@ -406,15 +406,15 @@ export default function HomePage() {
       }
 
       setLogs((prev) => [
-        ...prev,
+        ...prev.map((entry) => entry.status === "running" ? { ...entry, status: "done" as const } : entry),
         { id: prev.length, tag: "success", message: "DESIGN.md generated successfully", timestamp: now(), elapsed: elapsed(), status: "done" }
       ]);
       setMarkdown(body.markdown);
       setShowPreview(true);
     } catch (caught) {
       setLogs((prev) => [
-        ...prev,
-        { id: prev.length, tag: "error", message: caught instanceof Error ? caught.message : "Analysis failed", timestamp: now(), elapsed: elapsed(), status: "failed" }
+        ...prev.map((entry) => entry.status === "running" ? { ...entry, status: "failed" as const } : entry),
+        { id: prev.length, tag: "error", message: "Analysis stopped. See error details below.", timestamp: now(), elapsed: elapsed(), status: "failed" }
       ]);
       setError(caught instanceof Error ? caught.message : "The design analysis failed.");
     } finally {

@@ -8,12 +8,24 @@
 
 export function buildBrowserlessExtractionCode(): string {
   return `export default async ({ page, context }) => {
-  await page.goto(context.url, { waitUntil: "networkidle2", timeout: 45000 });
-  await new Promise(r => setTimeout(r, 1500));
+  try {
+    await page.goto(context.url, { waitUntil: "domcontentloaded", timeout: 20000 });
+  } catch (error) {
+    const hasDom = await page.evaluate(() => Boolean(document && document.body)).catch(() => false);
+    if (!hasDom) throw error;
+  }
+
+  await page.waitForSelector("body", { timeout: 8000 }).catch(() => undefined);
+  await page.waitForFunction(
+    () => document.body && document.body.innerText.trim().length > 80,
+    { timeout: 10000 }
+  ).catch(() => undefined);
+
+  await new Promise(r => setTimeout(r, 2500));
   await page.evaluate(() => window.scrollTo(0, Math.min(document.body.scrollHeight, 900)));
-  await new Promise(r => setTimeout(r, 800));
+  await new Promise(r => setTimeout(r, 1000));
   await page.evaluate(() => window.scrollTo(0, 0));
-  await new Promise(r => setTimeout(r, 500));
+  await new Promise(r => setTimeout(r, 600));
 
   const data = await page.evaluate(() => {
     const visible = (el) => {

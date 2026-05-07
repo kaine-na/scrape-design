@@ -19,8 +19,11 @@ describe("buildBrowserlessExtractionCode", () => {
     expect(code).toContain("img,picture,svg");
   });
 
-  it("includes waitUntil networkidle2 for JS-heavy sites", () => {
+  it("uses DOM-ready navigation with resilient content waits for SPAs", () => {
     const code = buildBrowserlessExtractionCode();
-    expect(code).toContain("networkidle2");
+    expect(code).toContain("domcontentloaded");
+    expect(code).toContain("waitForSelector");
+    expect(code).toContain("waitForFunction");
+    expect(code).not.toContain("networkidle2");
   });
 });
