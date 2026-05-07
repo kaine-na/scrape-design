@@ -39,14 +39,14 @@ interface AnalyzeApiResponse {
 /* ------------------------------------------------------------------ */
 
 const intermediateStages = [
-  { tag: "info" as const, msg: "Fetching page HTML via CORS proxy" },
-  { tag: "info" as const, msg: "Creating same-origin iframe for extraction" },
-  { tag: "info" as const, msg: "Extracting computed styles from live DOM" },
+  { tag: "info" as const, msg: "Connecting to Browserless headless browser" },
+  { tag: "info" as const, msg: "Loading page in high-fidelity browser session" },
+  { tag: "info" as const, msg: "Extracting computed styles from rendered DOM" },
   { tag: "info" as const, msg: "Collecting design tokens: colors, typography, spacing" },
   { tag: "info" as const, msg: "Capturing shadow layers, gradients, glass effects" },
   { tag: "info" as const, msg: "Detecting component families and interaction states" },
   { tag: "info" as const, msg: "Parsing motion, animations, and transition curves" },
-  { tag: "info" as const, msg: "Compacting analysis payload for LLM context window" },
+  { tag: "info" as const, msg: "Compacting Browserless analysis payload for LLM context window" },
   { tag: "info" as const, msg: "Calling LLM provider to generate DESIGN.md" }
 ];
 
@@ -318,6 +318,7 @@ export default function HomePage() {
       console.info("[client] requesting high-fidelity extraction for", targetUrl);
 
       let analysis: AnalysisResult | undefined;
+      let fallbackMessage = "High-fidelity extraction failed; using fast fallback";
       try {
         const extractResponse = await fetch("/api/extract", {
           method: "POST",
@@ -327,12 +328,21 @@ export default function HomePage() {
         const extractedBody = (await extractResponse.json()) as ExtractApiResponse;
 
         if (extractResponse.ok && extractedBody.analysis) {
-          analysis = extractedBody.analysis;
-          console.info("[client] high-fidelity extraction complete", extractedBody.meta ?? {});
-          setLogs((prev) => [
-            ...prev,
-            { id: prev.length, tag: "success", message: "High-fidelity extraction completed", timestamp: now() }
-          ]);
+          const validation = analysisResultSchema.safeParse(extractedBody.analysis);
+          if (validation.success) {
+            analysis = validation.data;
+            console.info("[client] high-fidelity extraction complete", extractedBody.meta ?? {});
+            setLogs((prev) => [
+              ...prev,
+              { id: prev.length, tag: "success", message: "High-fidelity Browserless extraction completed", timestamp: now() }
+            ]);
+          } else {
+            fallbackMessage = "High-fidelity extraction returned malformed analysis; using fast fallback";
+            console.warn(
+              "[client] high-fidelity extraction returned malformed analysis; using fast fallback",
+              validation.error
+            );
+          }
         } else {
           console.warn(
             "[client] high-fidelity extraction unavailable; using fast fallback",
@@ -346,10 +356,10 @@ export default function HomePage() {
       if (!analysis) {
         setLogs((prev) => [
           ...prev,
-          { id: prev.length, tag: "warn", message: "High-fidelity extraction failed; using fast fallback", timestamp: now() }
+          { id: prev.length, tag: "warn", message: fallbackMessage, timestamp: now() }
         ]);
 
-        /* Client-side extraction via proxy + blob iframe fallback */
+        /* Client-side fallback extraction */
         console.info("[client] extracting styles from", targetUrl);
         const extracted = await extractFromUrl(targetUrl);
         console.info("[client] extraction complete:", extracted.tokens.colors.length, "colors,", extracted.components.length, "components");

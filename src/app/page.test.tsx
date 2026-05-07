@@ -81,6 +81,7 @@ async function submitUrl() {
 describe("HomePage", () => {
   beforeEach(() => {
     mockScrollIntoView();
+    extractFromUrlMock.mockReset();
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
   });
@@ -150,5 +151,42 @@ describe("HomePage", () => {
     const analyzeBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
     expect(analyzeBody.analysis.page.title).toBe("Fallback Example");
     expect(screen.getByText(/High-fidelity extraction failed; using fast fallback/i)).toBeInTheDocument();
+  });
+
+  it("falls back to the client extractor when high-fidelity analysis is malformed", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    extractFromUrlMock.mockResolvedValue(fallbackExtraction);
+    const malformedAnalysis = {
+      ...validAnalysisFixture,
+      source: { ...validAnalysisFixture.source, url: "not-a-url" }
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const requestUrl = String(input);
+      if (requestUrl === "/api/extract") {
+        return Response.json({
+          analysis: malformedAnalysis,
+          meta: { provider: "browserless", browser: "chrome", region: "sfo" }
+        });
+      }
+      if (requestUrl === "/api/analyze") {
+        return Response.json({ markdown: "# DESIGN.md" });
+      }
+      return Response.json({}, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await submitUrl();
+
+    await waitFor(() => expect(extractFromUrlMock).toHaveBeenCalledWith("https://example.com"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/extract");
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/analyze");
+    const analyzeBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    expect(analyzeBody.analysis.page.title).toBe("Fallback Example");
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[client] high-fidelity extraction returned malformed analysis; using fast fallback",
+      expect.any(Error)
+    );
+    expect(screen.getByText(/malformed analysis; using fast fallback/i)).toBeInTheDocument();
   });
 });
