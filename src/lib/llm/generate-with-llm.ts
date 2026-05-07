@@ -5,8 +5,13 @@ import {
   buildDesignSystemBrain,
   buildSectionPrompt,
   compactAnalysisForPrompt,
-  SECTION_GROUPS
+  SECTION_GROUPS,
+  type SectionGroup
 } from "./prompt-brain";
+
+const PARALLEL_CONCURRENCY = 2;
+const GROUP_MAX_TOKENS = 1_200;
+const MONOLITHIC_MAX_TOKENS = 3_000;
 
 export function buildDesignPrompt(analysis: AnalysisResult): string {
   const base = buildDesignMarkdownTaskPrompt(analysis.source.url);
@@ -14,7 +19,61 @@ export function buildDesignPrompt(analysis: AnalysisResult): string {
   return `${base}\n\nCompact website analysis JSON:\n${compactJson}`;
 }
 
-/* Parallel generation: split 17 sections into 5 groups, generate concurrently */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  task: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await task(items[currentIndex], currentIndex);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker())
+  );
+
+  return results;
+}
+
+async function generateGroup(
+  group: SectionGroup,
+  analysis: AnalysisResult,
+  provider: DesignMarkdownProvider,
+  baseContext: string,
+  brain: string
+): Promise<string> {
+  const groupPrompt = buildSectionPrompt(group, baseContext);
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const startedAt = Date.now();
+    try {
+      const result = await provider.complete({
+        analysis,
+        prompt: groupPrompt,
+        systemPromptOverride: brain,
+        maxTokensOverride: GROUP_MAX_TOKENS,
+        streamOverride: false
+      });
+      console.info(`[llm-parallel] group "${group.id}" done in ${Date.now() - startedAt}ms (${result.length} chars, attempt ${attempt})`);
+      return result;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[llm-parallel] group "${group.id}" failed in ${Date.now() - startedAt}ms (attempt ${attempt}/2):`, error);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`Group "${group.id}" failed.`);
+}
+
+/* Parallel generation: split 17 sections into groups, generate with bounded concurrency */
 export async function generateWithLlmParallel(
   analysis: AnalysisResult,
   provider: DesignMarkdownProvider
@@ -23,34 +82,29 @@ export async function generateWithLlmParallel(
   const compactJson = JSON.stringify(compactAnalysisForPrompt(analysis), null, 2);
   const baseContext = `Design system analysis JSON:\n${compactJson}`;
 
-  console.info(`[llm-parallel] generating ${SECTION_GROUPS.length} section groups in parallel`);
+  console.info(
+    `[llm-parallel] generating ${SECTION_GROUPS.length} section groups with concurrency ${PARALLEL_CONCURRENCY}`
+  );
 
-  const groupPromises = SECTION_GROUPS.map(async (group) => {
-    const groupPrompt = buildSectionPrompt(group, baseContext);
-    const startedAt = Date.now();
+  try {
+    const sections = await mapWithConcurrency(
+      SECTION_GROUPS,
+      PARALLEL_CONCURRENCY,
+      (group) => generateGroup(group, analysis, provider, baseContext, brain)
+    );
 
-    try {
-      const result = await provider.complete({
-        analysis,
-        prompt: groupPrompt,
-        systemPromptOverride: brain,
-        maxTokensOverride: 600
-      });
-      console.info(`[llm-parallel] group "${group.id}" done in ${Date.now() - startedAt}ms (${result.length} chars)`);
-      return { id: group.id, content: result };
-    } catch (error) {
-      console.error(`[llm-parallel] group "${group.id}" failed after ${Date.now() - startedAt}ms:`, error);
-      return { id: group.id, content: `<!-- Group "${group.name}" generation failed: ${error instanceof Error ? error.message : "unknown"} -->` };
-    }
-  });
-
-  const results = await Promise.all(groupPromises);
-
-  /* Merge in order: header + front matter, then each group */
-  const header = `---\nsource: ${analysis.source.url}\nanalyzed: ${analysis.source.analyzedAt}\ntool: scrape-design\n---\n\n`;
-  const sections = results.map((r) => r.content.trim()).filter(Boolean);
-
-  return header + sections.join("\n\n---\n\n");
+    const header = `---\nsource: ${analysis.source.url}\nanalyzed: ${analysis.source.analyzedAt}\ntool: scrape-design\n---\n\n`;
+    return header + sections.map((section) => section.trim()).filter(Boolean).join("\n\n---\n\n");
+  } catch (error) {
+    console.warn("[llm-parallel] falling back to monolithic generation after section failure:", error);
+    return provider.complete({
+      analysis,
+      prompt: buildDesignPrompt(analysis),
+      systemPromptOverride: brain,
+      maxTokensOverride: MONOLITHIC_MAX_TOKENS,
+      streamOverride: true
+    });
+  }
 }
 
 /* Single monolithic generation (original, for backward compat) */

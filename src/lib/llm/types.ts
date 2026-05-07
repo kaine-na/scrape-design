@@ -6,5 +6,6 @@ export interface DesignMarkdownProvider {
     prompt: string;
     systemPromptOverride?: string;
     maxTokensOverride?: number;
+    streamOverride?: boolean;
   }): Promise<string>;
 }

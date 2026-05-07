@@ -113,9 +113,9 @@ export function openAiCompatibleProvider(
 
   return {
     kind: "openai-compatible",
-    async complete({ analysis, prompt, systemPromptOverride, maxTokensOverride }) {
+    async complete({ analysis, prompt, systemPromptOverride, maxTokensOverride, streamOverride }) {
       const startedAt = Date.now();
-      const useStream = options.stream ?? true;
+      const useStream = streamOverride ?? options.stream ?? true;
       console.info(`[llm] calling ${options.model} via ${cleanBaseUrl} (${useStream ? "stream" : "json"})`);
 
       const controller = new AbortController();
