@@ -9,11 +9,11 @@
 export function buildBrowserlessExtractionCode(): string {
   return `export default async ({ page, context }) => {
   await page.goto(context.url, { waitUntil: "networkidle2", timeout: 45000 });
-  await page.waitForTimeout(1500);
+  await new Promise(r => setTimeout(r, 1500));
   await page.evaluate(() => window.scrollTo(0, Math.min(document.body.scrollHeight, 900)));
-  await page.waitForTimeout(800);
+  await new Promise(r => setTimeout(r, 800));
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(500);
+  await new Promise(r => setTimeout(r, 500));
 
   const data = await page.evaluate(() => {
     const visible = (el) => {
