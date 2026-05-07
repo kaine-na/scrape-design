@@ -1,16 +1,63 @@
 import type { AnalysisResult } from "@/lib/analysis/types";
 
 type RawStyleSample = {
-  text?: string;
-  selector?: string;
-  styles?: Record<string, string | undefined>;
+  text?: unknown;
+  selector?: unknown;
+  styles?: unknown;
 };
 
 type RawBrowserlessResult = {
-  title?: string;
-  description?: string;
-  samples?: Record<string, RawStyleSample[]>;
+  title?: unknown;
+  description?: unknown;
+  samples?: unknown;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringOrUndefined(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function normalizeStyles(styles: unknown): Record<string, string> {
+  if (!isRecord(styles)) return {};
+
+  return Object.fromEntries(
+    Object.entries(styles).filter((entry): entry is [string, string] =>
+      typeof entry[1] === "string" && entry[1].length > 0
+    )
+  );
+}
+
+function normalizeSample(sample: unknown): RawStyleSample | undefined {
+  if (!isRecord(sample)) return undefined;
+
+  return {
+    text: stringOrUndefined(sample.text),
+    selector: stringOrUndefined(sample.selector),
+    styles: normalizeStyles(sample.styles)
+  };
+}
+
+function normalizeSampleBucket(samples: unknown): RawStyleSample[] {
+  if (!Array.isArray(samples)) return [];
+  return samples.flatMap((sample) => {
+    const normalized = normalizeSample(sample);
+    return normalized ? [normalized] : [];
+  });
+}
+
+function normalizeSamples(samples: unknown): Record<string, RawStyleSample[]> {
+  if (!isRecord(samples)) return {};
+
+  return Object.fromEntries(
+    Object.entries(samples).map(([bucketName, bucketSamples]) => [
+      bucketName,
+      normalizeSampleBucket(bucketSamples)
+    ])
+  );
+}
 
 function pushUniqueToken(
   target: AnalysisResult["tokens"]["colors"],
@@ -24,22 +71,42 @@ function pushUniqueToken(
   target.push({ name, value, role, source: "observed", confidence: "medium" });
 }
 
-function compactStyles(styles: Record<string, string | undefined> | undefined) {
-  return Object.fromEntries(
-    Object.entries(styles ?? {}).filter((entry): entry is [string, string] =>
-      Boolean(entry[1])
-    )
-  );
+function pushUniqueDesignToken(
+  target: AnalysisResult["tokens"]["spacing"],
+  seen: Set<string>,
+  namePrefix: string,
+  value: string | undefined,
+  confidence: "low" | "medium" = "medium"
+) {
+  if (!value || seen.has(value)) return;
+  seen.add(value);
+  target.push({
+    name: `${namePrefix}-${target.length + 1}`,
+    value,
+    source: "observed",
+    confidence
+  });
+}
+
+function compactStyles(styles: unknown) {
+  return normalizeStyles(styles);
 }
 
 export function normalizeBrowserlessResult(input: {
   requestedUrl: string;
-  raw: RawBrowserlessResult;
+  raw: RawBrowserlessResult | unknown;
 }): AnalysisResult {
-  const samples = input.raw.samples ?? {};
+  const raw = isRecord(input.raw) ? input.raw : {};
+  const samples = normalizeSamples(raw.samples);
   const allSamples = Object.values(samples).flat();
   const seenColors = new Set<string>();
   const seenTypography = new Set<string>();
+  const seenSpacing = new Set<string>();
+  const seenRadius = new Set<string>();
+  const seenShadows = new Set<string>();
+  const seenGradients = new Set<string>();
+  const seenEffects = new Set<string>();
+  const seenMotion = new Set<string>();
 
   const colors: AnalysisResult["tokens"]["colors"] = [];
   const typography: AnalysisResult["tokens"]["typography"] = [];
@@ -50,8 +117,9 @@ export function normalizeBrowserlessResult(input: {
   const effects: AnalysisResult["tokens"]["effects"] = [];
   const motion: AnalysisResult["tokens"]["motion"] = [];
 
-  allSamples.forEach((sample, index) => {
-    const styles = sample.styles ?? {};
+  allSamples.forEach((sample) => {
+    const styles = normalizeStyles(sample.styles);
+    const text = stringOrUndefined(sample.text);
     pushUniqueToken(
       colors,
       seenColors,
@@ -80,37 +148,23 @@ export function normalizeBrowserlessResult(input: {
       typography.push({
         name: `type-${typography.length + 1}`,
         value: typeValue,
-        role: sample.text ? sample.text.slice(0, 60) : undefined,
+        role: text ? text.slice(0, 60) : undefined,
         source: "observed",
         confidence: "medium"
       });
     }
 
-    if (styles.padding) {
-      spacing.push({
-        name: `spacing-${index + 1}`,
-        value: styles.padding,
-        source: "observed",
-        confidence: "low"
-      });
-    }
-    if (styles.borderRadius) {
-      radius.push({
-        name: `radius-${index + 1}`,
-        value: styles.borderRadius,
-        source: "observed",
-        confidence: "medium"
-      });
-    }
+    pushUniqueDesignToken(spacing, seenSpacing, "spacing", styles.padding, "low");
+    pushUniqueDesignToken(radius, seenRadius, "radius", styles.borderRadius);
+
     if (styles.boxShadow && styles.boxShadow !== "none") {
-      shadows.push({
-        name: `shadow-${index + 1}`,
-        value: styles.boxShadow,
-        source: "observed",
-        confidence: "medium"
-      });
+      pushUniqueDesignToken(shadows, seenShadows, "shadow", styles.boxShadow);
     }
-    if (styles.backgroundImage?.includes("gradient")) {
+    if (
+      styles.backgroundImage?.includes("gradient") &&
+      !seenGradients.has(styles.backgroundImage)
+    ) {
+      seenGradients.add(styles.backgroundImage);
       gradients.push({
         name: `gradient-${gradients.length + 1}`,
         value: styles.backgroundImage,
@@ -125,28 +179,13 @@ export function normalizeBrowserlessResult(input: {
       });
     }
     if (styles.filter && styles.filter !== "none") {
-      effects.push({
-        name: `filter-${index + 1}`,
-        value: styles.filter,
-        source: "observed",
-        confidence: "medium"
-      });
+      pushUniqueDesignToken(effects, seenEffects, "filter", styles.filter);
     }
     if (styles.transition && styles.transition !== "none") {
-      motion.push({
-        name: `motion-${index + 1}`,
-        value: styles.transition,
-        source: "observed",
-        confidence: "medium"
-      });
+      pushUniqueDesignToken(motion, seenMotion, "motion", styles.transition);
     }
     if (styles.animation && styles.animation !== "none") {
-      motion.push({
-        name: `animation-${index + 1}`,
-        value: styles.animation,
-        source: "observed",
-        confidence: "medium"
-      });
+      pushUniqueDesignToken(motion, seenMotion, "animation", styles.animation);
     }
   });
 
@@ -165,14 +204,17 @@ export function normalizeBrowserlessResult(input: {
     },
     confidence: { overall: allSamples.length > 8 ? "high" : "medium" },
     page: {
-      title: input.raw.title,
-      description: input.raw.description,
-      sections: sectionSamples.slice(0, 12).map((sample, index) => ({
-        role: sample.selector ?? "section",
-        heading: sample.text?.slice(0, 80),
-        textSample: sample.text,
-        order: index
-      }))
+      title: stringOrUndefined(raw.title),
+      description: stringOrUndefined(raw.description),
+      sections: sectionSamples.slice(0, 12).map((sample, index) => {
+        const text = stringOrUndefined(sample.text);
+        return {
+          role: stringOrUndefined(sample.selector) ?? "section",
+          heading: text?.slice(0, 80),
+          textSample: text,
+          order: index
+        };
+      })
     },
     tokens: {
       colors,
@@ -188,8 +230,8 @@ export function normalizeBrowserlessResult(input: {
     components: componentSamples.slice(0, 24).map(({ type, sample }, index) => ({
       type,
       name: `${type}-${index + 1}`,
-      selector: sample.selector,
-      description: sample.text,
+      selector: stringOrUndefined(sample.selector),
+      description: stringOrUndefined(sample.text),
       styles: compactStyles(sample.styles),
       states: [],
       confidence: "medium"
