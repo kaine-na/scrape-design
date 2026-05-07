@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { extractFromUrl } from "@/lib/analyzer/client-extractor";
 import { analysisResultSchema, type AnalysisResult } from "@/lib/analysis/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -349,15 +348,26 @@ export default function HomePage() {
       ]);
       console.info("[client] requesting high-fidelity extraction for", targetUrl);
 
+      /* Call /api/extract with retry on concurrency limit (429) */
       let analysis: AnalysisResult | undefined;
-      let fallbackMessage = "High-fidelity extraction failed; using fast fallback";
-      try {
+      const MAX_RETRIES = 8;
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         const extractResponse = await fetch("/api/extract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url: targetUrl, mode: "high-fidelity" })
         });
         const extractedBody = (await extractResponse.json()) as ExtractApiResponse;
+
+        if (extractResponse.status === 429) {
+          const waitSec = Math.min(3 * attempt, 15);
+          setLogs((prev) => [
+            ...prev,
+            { id: prev.length, tag: "warn", message: `Browserless busy, retrying in ${waitSec}s (attempt ${attempt}/${MAX_RETRIES})`, timestamp: now(), elapsed: elapsed(), status: "running" }
+          ]);
+          await new Promise((r) => setTimeout(r, waitSec * 1000));
+          continue;
+        }
 
         if (extractResponse.ok && extractedBody.analysis) {
           const validation = analysisResultSchema.safeParse(extractedBody.analysis);
@@ -370,45 +380,18 @@ export default function HomePage() {
               { id: prev.length, tag: "success", message: "High-fidelity Browserless extraction completed", timestamp: now(), elapsed: elapsed(), status: "done" }
             ]);
           } else {
-            fallbackMessage = "High-fidelity extraction returned malformed analysis; using fast fallback";
-            console.warn(
-              "[client] high-fidelity extraction returned malformed analysis; using fast fallback",
-              validation.error
-            );
+            throw new Error("Browserless returned malformed analysis data.");
           }
         } else {
           const reason = extractedBody.code ?? `HTTP_${extractResponse.status}`;
-          fallbackMessage = `High-fidelity extraction failed (${reason}); using fast fallback`;
-          console.warn(
-            "[client] high-fidelity extraction unavailable:", reason,
-            extractedBody.error ?? ""
-          );
+          const detail = extractedBody.error ?? "";
+          throw new Error(`Extraction failed (${reason}): ${detail}`);
         }
-      } catch (extractError) {
-        console.warn("[client] high-fidelity extraction failed; using fast fallback", extractError);
+        break;
       }
 
       if (!analysis) {
-        setLogs((prev) => [
-          ...prev,
-          { id: prev.length, tag: "warn", message: fallbackMessage, timestamp: now(), elapsed: elapsed(), status: "failed" }
-        ]);
-
-        /* Client-side fallback extraction */
-        console.info("[client] extracting styles from", targetUrl);
-        const extracted = await extractFromUrl(targetUrl);
-        console.info("[client] extraction complete:", extracted.tokens.colors.length, "colors,", extracted.components.length, "components");
-
-        analysis = analysisResultSchema.parse({
-          source: { url: targetUrl, analyzedAt: new Date().toISOString(), scanType: "single-page" as const },
-          confidence: { overall: "medium" as const },
-          page: { title: extracted.title, description: extracted.description, sections: extracted.sections },
-          tokens: extracted.tokens,
-          components: extracted.components,
-          evidence: extracted.evidence,
-          assumptions: extracted.assumptions,
-          gaps: extracted.gaps
-        });
+        throw new Error("Browserless extraction timed out after maximum retries. Please try again.");
       }
 
       /* Send to LLM API */
