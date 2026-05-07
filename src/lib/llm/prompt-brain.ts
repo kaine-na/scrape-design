@@ -89,11 +89,9 @@ export function compactAnalysisForPrompt(analysis: AnalysisResult) {
     confidence: analysis.confidence,
     page: {
       title: analysis.page.title,
-      description: truncate(analysis.page.description, 320),
       sections: analysis.page.sections.slice(0, 20).map((section) => ({
         role: section.role,
-        heading: truncate(section.heading, 200),
-        textSample: truncate(section.textSample, 220),
+        heading: truncate(section.heading, 80),
         order: section.order
       }))
     },
@@ -119,11 +117,11 @@ export function compactAnalysisForPrompt(analysis: AnalysisResult) {
 
 export function buildDesignSystemBrain(): string {
   return [
-    "You are a design-system architect. Convert website analysis JSON into DESIGN.md for AI coding agents.",
-    "RULES: Every claim references analysis evidence (Detected/Observed/Inferred). NEVER invent values.",
-    "Output usable ```css blocks for ALL tokens, shadows, gradients, effects, and components.",
-    "Preserve exact computed values. Include -webkit- prefixes for backdrop-filter.",
-    "Weak evidence: mark 'Low confidence - [reason]'. Output ONLY the DESIGN.md. No conversational text."
+    "You are a senior frontend designer, web design auditor, and design-system reviewer.",
+    "Convert visual/style analysis JSON into DESIGN.md for AI coding agents. Focus ONLY on web design: tokens, layout, components, motion, effects, responsive behavior, and UX/a11y review.",
+    "Do NOT summarize page content, marketing copy, product features, or article text. Use page text only as visual evidence when needed.",
+    "Every design claim references analysis evidence (Detected/Observed/Inferred). NEVER invent values.",
+    "Output usable ```css blocks for ALL tokens, shadows, gradients, effects, and components. Output ONLY the DESIGN.md."
   ].join("\n");
 }
 
@@ -131,20 +129,21 @@ export function buildDesignSystemBrain(): string {
 
 export function buildDesignMarkdownTaskPrompt(sourceUrl: string): string {
   return [
-    `Generate one complete DESIGN.md from the website analysis JSON for ${sourceUrl}.`,
+    `Generate one complete DESIGN.md visual design audit from the website analysis JSON for ${sourceUrl}.`,
     "",
     "RULES:",
     "1. Valid Markdown with YAML front matter (--- ... ---).",
     "2. Every section includes ```css blocks with exact CSS values.",
     "3. NEVER invent values - use EXACT data from analysis.",
     "4. Merge duplicate components. Explain each shadow layer.",
+    "5. Do NOT summarize page content/copy; document visual design only.",
     "",
     "REQUIRED SECTIONS (17):",
     "1. Source Summary 2. Visual Theme & Brand Atmosphere 3. Design Tokens",
     "4. Typography System 5. Color System & Semantic Roles 6. Layout, Grid & Spacing",
     "7. Component Specifications 8. Interaction & Feedback States 9. Motion & Animation",
-    "10. Responsive Behavior 11. Accessibility 12. Content & Page Structure",
-    "13. Tech Stack Signals 14. AI Agent Implementation Prompt 15. Do's and Don'ts",
+    "10. Responsive Behavior 11. Accessibility 12. Design Composition & Visual Hierarchy",
+    "13. Implementation Guidance 14. AI Agent Design Implementation Prompt 15. Do's and Don'ts",
     "16. Validation Checklist 17. Evidence, Assumptions & Gaps"
   ].join("\n");
 }
@@ -186,8 +185,8 @@ export const SECTION_GROUPS: SectionGroup[] = [
   {
     id: "implementation",
     name: "Implementation Guide",
-    sections: ["Content & Page Structure", "Tech Stack Signals & Implementation Guidance", "AI Agent Implementation Prompt", "Do's and Don'ts", "Validation Checklist", "Evidence, Assumptions & Gaps"],
-    instructions: "Describe page layout and content hierarchy. Identify frameworks/libraries from analysis. Write an actionable implementation prompt for AI coding agents. List do's and don'ts. Create a validation checklist. Document evidence sources, assumptions, and gaps."
+    sections: ["Design Composition & Visual Hierarchy", "Implementation Guidance", "AI Agent Design Implementation Prompt", "Do's and Don'ts", "Validation Checklist", "Evidence, Assumptions & Gaps"],
+    instructions: "Describe visual composition only: hierarchy, rhythm, density, whitespace, alignment, layering, and focal points. Do NOT summarize page copy or product content. Write actionable frontend implementation guidance for recreating the style. List design do's and don'ts. Create a visual QA checklist. Document evidence sources, assumptions, and gaps."
   }
 ];
 
@@ -202,6 +201,6 @@ export function buildSectionPrompt(
     "",
     `TASK: ${group.instructions}`,
     "",
-    "Output valid Markdown with ```css blocks. Use EXACT values from the analysis JSON above."
+    "Output valid Markdown with ```css blocks. Use EXACT values from the analysis JSON above. Do not summarize page content or copy."
   ].join("\n");
 }

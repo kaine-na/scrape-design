@@ -59,7 +59,7 @@ describe("prompt brain", () => {
   it("compacts analysis before sending it to the LLM", () => {
     const compact = compactAnalysisForPrompt(analysis);
 
-    expect(compact.page.description?.length).toBeLessThan(340);
+    expect("description" in compact.page).toBe(false);
     expect(compact.page.sections.length).toBeLessThanOrEqual(20);
     expect(compact.tokens.colors.length).toBeLessThanOrEqual(12);
     expect(compact.components.length).toBeLessThanOrEqual(8);
@@ -69,7 +69,7 @@ describe("prompt brain", () => {
   it("frames the brain without self-identifying as an AI", () => {
     const brain = buildDesignSystemBrain();
 
-    expect(brain).toContain("design-system architect");
+    expect(brain).toContain("frontend designer");
     expect(brain.toLowerCase()).not.toContain("you are an ai");
   });
 
@@ -78,5 +78,6 @@ describe("prompt brain", () => {
 
     expect(prompt).toContain("NEVER invent values");
     expect(prompt).toContain("Merge duplicate components");
+    expect(prompt).toContain("Do NOT summarize page content");
   });
 });
