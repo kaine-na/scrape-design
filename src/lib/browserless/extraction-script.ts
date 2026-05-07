@@ -1,6 +1,7 @@
 export function buildBrowserlessExtractionQuery(url: string, timeoutMs: number) {
   const safeUrl = JSON.stringify(url);
-  const timeout = Math.max(5_000, Math.min(timeoutMs, 55_000));
+  const finiteTimeoutMs = Number.isFinite(timeoutMs) ? timeoutMs : 50_000;
+  const timeout = Math.max(5_000, Math.min(finiteTimeoutMs, 55_000));
 
   return `
 mutation ExtractDesignSystem {
@@ -9,12 +10,12 @@ mutation ExtractDesignSystem {
   }
   evaluate(content: """
     async () => {
-      const pick = (selector) => Array.from(document.querySelectorAll(selector)).slice(0, 12);
       const visible = (el) => {
         const rect = el.getBoundingClientRect();
         const style = getComputedStyle(el);
         return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
       };
+      const pick = (selector) => Array.from(document.querySelectorAll(selector)).filter(visible).slice(0, 12);
       const sampleStyles = (el) => {
         const style = getComputedStyle(el);
         const rect = el.getBoundingClientRect();
@@ -52,11 +53,11 @@ mutation ExtractDesignSystem {
       await new Promise((resolve) => setTimeout(resolve, 500));
       window.scrollTo(0, 0);
 
-      const headings = pick('h1,h2,h3').filter(visible).map(sampleStyles);
-      const buttons = pick('button,a,[role="button"],input,textarea,select').filter(visible).map(sampleStyles);
-      const sections = pick('header,main,section,article,footer,nav').filter(visible).map(sampleStyles);
-      const cards = pick('[class*="card"],[class*="feature"],[class*="pricing"],li').filter(visible).map(sampleStyles);
-      const images = pick('img,picture,svg').filter(visible).map(sampleStyles);
+      const headings = pick('h1,h2,h3').map(sampleStyles);
+      const buttons = pick('button,a,[role="button"],input,textarea,select').map(sampleStyles);
+      const sections = pick('header,main,section,article,footer,nav').map(sampleStyles);
+      const cards = pick('[class*="card"],[class*="feature"],[class*="pricing"],li').map(sampleStyles);
+      const images = pick('img,picture,svg').map(sampleStyles);
 
       return {
         title: document.title,
