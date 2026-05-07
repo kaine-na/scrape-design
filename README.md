@@ -113,6 +113,19 @@ RATE_LIMIT_MAX_REQUESTS=10
 RATE_LIMIT_WINDOW_MS=60000
 ```
 
+### Browserless.io
+
+High-fidelity extraction uses Browserless.io. Configure the same variables locally in `.env.local` and in Cloudflare Pages environment variables:
+
+- `BROWSERLESS_API_TOKEN`
+- `BROWSERLESS_REGION=sfo`
+- `BROWSERLESS_BROWSER=chrome`
+- `BROWSERLESS_TIMEOUT_MS=50000`
+- `BROWSERLESS_USE_RESIDENTIAL_PROXY=false`
+- `BROWSERLESS_MAX_CONCURRENCY=2`
+
+Free-plan limits to respect: 1k units/month, 2 concurrent browsers, 1 minute max session time. Residential proxies are disabled by default.
+
 If `LLM_API_KEY`, `LLM_BASE_URL`, or `LLM_MODEL` is missing, the app falls back to the mock Markdown generator for development.
 
 ## Expected Logs
