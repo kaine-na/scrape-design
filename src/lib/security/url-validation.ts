@@ -2,6 +2,16 @@ type ValidationResult =
   | { ok: true; url: string; hostname: string }
   | { ok: false; error: string };
 
+type DnsQuestionType = "A" | "AAAA";
+
+type DnsAnswer = {
+  data?: unknown;
+};
+
+type DnsResponse = {
+  Answer?: DnsAnswer[];
+};
+
 const blockedHostnames = new Set(["localhost", "0.0.0.0"]);
 
 function normalizeIpv6Hostname(hostname: string): string | null {
@@ -27,6 +37,10 @@ function isPrivateIpv4(hostname: string): boolean {
   const ip = parseIpv4(hostname);
   if (!ip) return false;
   return isPrivateIpv4Parts(ip);
+}
+
+function isLiteralIp(hostname: string): boolean {
+  return parseIpv4(hostname) !== null || parseIpv6(hostname) !== null;
 }
 
 function isPrivateIpv4Parts(ip: number[]): boolean {
@@ -96,6 +110,52 @@ function isPrivateIpv6(hostname: string): boolean {
   }
 
   return isUnspecified || isLoopback || isUniqueLocal || isLinkLocal;
+}
+
+async function resolveDnsOverHttps(hostname: string, type: DnsQuestionType) {
+  const response = await fetch(
+    `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=${type}`,
+    { headers: { Accept: "application/dns-json" } }
+  );
+
+  if (!response.ok) throw new Error("DNS preflight failed");
+
+  const payload = (await response.json()) as DnsResponse;
+  return (payload.Answer ?? [])
+    .map((answer) => answer.data)
+    .filter((data): data is string => typeof data === "string");
+}
+
+export async function preflightPublicHostnameDns(hostname: string): Promise<ValidationResult> {
+  const normalized = hostname.toLowerCase();
+  if (isLiteralIp(normalized)) return { ok: true, url: "", hostname: normalized };
+
+  let answers: string[];
+  try {
+    const [ipv4Answers, ipv6Answers] = await Promise.all([
+      resolveDnsOverHttps(normalized, "A"),
+      resolveDnsOverHttps(normalized, "AAAA")
+    ]);
+    answers = [...ipv4Answers, ...ipv6Answers];
+  } catch {
+    return {
+      ok: false,
+      error: "Could not verify that this URL resolves to a public address."
+    };
+  }
+
+  if (answers.length === 0) {
+    return {
+      ok: false,
+      error: "Could not verify that this URL resolves to a public address."
+    };
+  }
+
+  if (answers.some((answer) => isPrivateIpv4(answer) || isPrivateIpv6(answer))) {
+    return { ok: false, error: "Private network URLs cannot be analyzed." };
+  }
+
+  return { ok: true, url: "", hostname: normalized };
 }
 
 export function validatePublicHttpUrl(input: string): ValidationResult {

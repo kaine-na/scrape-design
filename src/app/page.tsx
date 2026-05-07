@@ -60,6 +60,15 @@ function now(): string {
   return new Date().toLocaleTimeString("en-US", { hour12: false });
 }
 
+function normalizeHttpUrl(rawUrl: string): string {
+  const cleaned = rawUrl.trim();
+  try {
+    return new URL(/^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`).toString();
+  } catch {
+    return cleaned;
+  }
+}
+
 function domain(rawUrl: string): string {
   const cleaned = rawUrl.trim();
   try {
@@ -284,7 +293,7 @@ export default function HomePage() {
     setMarkdown("");
     setShowPreview(false);
     setIframeFailed(false);
-    analyzedUrlRef.current = targetUrl;
+    analyzedUrlRef.current = normalizeHttpUrl(targetUrl);
     setLogs([]);
     setIsLoading(true);
 

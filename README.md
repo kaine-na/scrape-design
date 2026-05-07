@@ -39,7 +39,7 @@ The app renders the target page with Playwright, extracts live DOM and 40+ compu
 - Optimized for **sub-60-second end-to-end** with Groq or Gemini Flash
 
 ### Safety
-- URL validation (rejects localhost, private IPs, non-HTTP schemes)
+- URL validation and DNS preflight (rejects localhost, private IPs, non-HTTP schemes)
 - In-memory rate limiting (10 req/60s per IP)
 - No login, no permanent storage
 
@@ -146,7 +146,7 @@ If you see `[llm] using mock provider`, fill `.env.local` and restart.
 ## Quality Checks
 
 ```bash
-npm test          # 23 tests across 11 test files
+npm test          # 66 tests across 17 test files
 npm run typecheck # TypeScript strict mode
 npm run build     # Production build
 ```

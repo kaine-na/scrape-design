@@ -7,9 +7,13 @@ import {
   mapBrowserlessError
 } from "@/lib/browserless/client";
 import { getBrowserlessConfig } from "@/lib/browserless/config";
+import { getBrowserlessEnv } from "@/lib/browserless/env";
 import { buildBrowserlessExtractionQuery } from "@/lib/browserless/extraction-script";
 import { normalizeBrowserlessResult } from "@/lib/browserless/normalize";
-import { validatePublicHttpUrl } from "@/lib/security/url-validation";
+import {
+  preflightPublicHostnameDns,
+  validatePublicHttpUrl
+} from "@/lib/security/url-validation";
 
 export const runtime = "edge";
 
@@ -17,6 +21,8 @@ const requestSchema = z.object({
   url: z.string().min(1),
   mode: z.literal("high-fidelity").default("high-fidelity")
 });
+
+let activeBrowserlessExtractions = 0;
 
 function jsonError(error: string, code: string, status: number) {
   return NextResponse.json({ error, code }, { status });
@@ -66,16 +72,31 @@ export async function POST(request: Request) {
     return jsonError(urlResult.error, "INVALID_URL", 400);
   }
 
-  const config = getBrowserlessConfig();
+  const config = getBrowserlessConfig(await getBrowserlessEnv());
   if (!config.enabled) {
     return jsonError("Browserless is not configured.", config.error, 503);
   }
+
+  if (activeBrowserlessExtractions >= config.maxConcurrency) {
+    return jsonError(
+      "Browserless extraction concurrency limit reached.",
+      "BROWSERLESS_QUOTA_OR_CONCURRENCY",
+      429
+    );
+  }
+
+  activeBrowserlessExtractions += 1;
 
   const endpoint = buildBrowserlessEndpoint(config);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs);
 
   try {
+    const dnsResult = await preflightPublicHostnameDns(urlResult.hostname);
+    if (!dnsResult.ok) {
+      return jsonError(dnsResult.error, "INVALID_URL", 400);
+    }
+
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -160,6 +181,7 @@ export async function POST(request: Request) {
       502
     );
   } finally {
+    activeBrowserlessExtractions = Math.max(0, activeBrowserlessExtractions - 1);
     clearTimeout(timeoutId);
   }
 }
